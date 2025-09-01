@@ -1,0 +1,167 @@
+package handler
+
+import (
+	authDto "backend-golang/internal/auth/dto"
+	"backend-golang/internal/auth/service"
+	userErrors "backend-golang/internal/user/errors"
+	globalErrors "backend-golang/shared/errors"
+	"backend-golang/shared/helpers"
+	"backend-golang/shared/types"
+	"errors"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
+)
+
+type AuthHandler struct {
+	authService service.AuthService
+}
+
+func NewAuthHandler(authService service.AuthService) *AuthHandler {
+	return &AuthHandler{
+		authService: authService,
+	}
+}
+
+func (h *AuthHandler) handleErrorResponse(c *gin.Context, err error) {
+	var validationErrors validator.ValidationErrors
+	if errors.As(err, &validationErrors) {
+		c.JSON(http.StatusUnprocessableEntity, types.ErrorResponse{
+			Success: false,
+			Message: "Validation Errors",
+			Errors:  helpers.TranslateErrorMessage(err),
+		})
+		return
+	}
+
+	statusCode := http.StatusInternalServerError
+	message := "An internal server errors occurred."
+
+	switch {
+	case errors.Is(err, userErrors.ErrUserNotFound):
+		statusCode = http.StatusNotFound
+		message = "User not found."
+	case errors.Is(err, userErrors.ErrEmailExists):
+		statusCode = http.StatusConflict
+		message = "A user with that email already exists."
+	case errors.Is(err, userErrors.ErrUsernameExists):
+		statusCode = http.StatusConflict
+		message = "A user with that username already exists."
+	case errors.Is(err, userErrors.ErrInvalidUserID), errors.Is(err, userErrors.ErrUserIDRequired):
+		statusCode = http.StatusBadRequest
+		message = "Invalid or missing user ID."
+	case errors.Is(err, globalErrors.ErrBadRequest), errors.Is(err, globalErrors.ErrInvalidInput):
+		statusCode = http.StatusBadRequest
+		message = "Bad request."
+	}
+
+	c.JSON(statusCode, types.ErrorResponse{
+		Success: false,
+		Message: message,
+		Errors:  helpers.TranslateErrorMessage(err),
+	})
+}
+
+func (h *AuthHandler) Register(c *gin.Context) {
+	req := authDto.RegisterRequest{}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleErrorResponse(c, err)
+		return
+	}
+
+	err := h.authService.RegisterUser(c.Request.Context(), &req)
+	if err != nil {
+		h.handleErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, types.SuccessResponse{
+		Success: true,
+		Message: "User created",
+		Data:    nil,
+	})
+}
+
+func (h *AuthHandler) Login(c *gin.Context) {
+	req := authDto.LoginRequest{}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleErrorResponse(c, err)
+
+		return
+	}
+
+	userLogin, err := h.authService.LoginUser(c.Request.Context(), &req)
+	if err != nil {
+		h.handleErrorResponse(c, err)
+		return
+	}
+
+	c.SetCookie(
+		"refresh_token",
+		userLogin.RefreshToken,
+		3600*24*7,
+		"/",
+		"",
+		true,
+		true,
+	)
+
+	c.JSON(http.StatusOK, types.SuccessResponse{
+		Success: true,
+		Message: "Login Success",
+		Data:    userLogin,
+	})
+}
+
+func (h *AuthHandler) RefreshToken(c *gin.Context) {
+	req := authDto.RefreshTokenRequest{}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleErrorResponse(c, err)
+		return
+	}
+
+	var refreshToken, err = h.authService.RefreshTokenUser(c.Request.Context(), &req)
+	if err != nil {
+		h.handleErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, types.SuccessResponse{
+		Success: true,
+		Message: "New Access Token Generated Successfully",
+		Data:    refreshToken,
+	})
+}
+
+func (h *AuthHandler) Logout(c *gin.Context) {
+	refreshToken, err := c.Cookie("refresh_token")
+	if err != nil {
+		h.handleErrorResponse(c, err)
+		return
+	}
+
+	if err := h.authService.LogoutUser(c.Request.Context(), refreshToken); err != nil {
+		h.handleErrorResponse(c, err)
+		return
+	}
+
+	c.SetCookie(
+		"refresh_token",
+		"",
+		-1,
+		"/",
+		"",
+		true,
+		true,
+	)
+
+	c.JSON(http.StatusOK, types.SuccessResponse{
+		Success: true,
+		Message: "Logout Success",
+		Data:    nil,
+	})
+}
