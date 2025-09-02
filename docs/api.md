@@ -2,7 +2,7 @@
 
 ## Overview
 
-This is a RESTful API built with Go (Golang) using the Gin framework, GORM for database operations, and JWT for authentication. The API provides user management and authentication services with a clean, layered architecture.
+This is a RESTful API built with Go (Golang) using the Gin framework, GORM for database operations, and JWT for authentication. The API provides user management and authentication services with a clean, layered architecture following clean architecture principles.
 
 ## Base URL
 
@@ -35,7 +35,7 @@ Authorization: Bearer <your_jwt_token>
   "success": false,
   "message": "Error description",
   "errors": {
-    "field": "errors message"
+    "field": "error message"
   }
 }
 ```
@@ -54,8 +54,7 @@ Authorization: Bearer <your_jwt_token>
   "name": "John Doe",
   "username": "johndoe",
   "email": "john@example.com",
-  "password": "securepassword123",
-  "business_name": "John's Business"
+  "password": "securepassword123"
 }
 ```
 - **Response:**
@@ -68,9 +67,9 @@ Authorization: Bearer <your_jwt_token>
     "name": "John Doe",
     "username": "johndoe",
     "email": "john@example.com",
-    "business_name": "John's Business",
-    "create_at": "2024-01-01T00:00:00Z",
-    "update_at": "2024-01-01T00:00:00Z"
+    "role": "user",
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z"
   }
 }
 ```
@@ -96,10 +95,12 @@ Authorization: Bearer <your_jwt_token>
     "name": "John Doe",
     "username": "johndoe",
     "email": "john@example.com",
-    "business_name": "John's Business",
-    "create_at": "2024-01-01T00:00:00Z",
-    "update_at": "2024-01-01T00:00:00Z",
-    "token": "jwt_access_token"
+    "role": "user",
+    "accessToken": "jwt_access_token",
+    "tokenType": "Bearer",
+    "refreshToken": "refresh_token_string",
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z"
   }
 }
 ```
@@ -111,7 +112,7 @@ Authorization: Bearer <your_jwt_token>
 - **Request Body:**
 ```json
 {
-  "refresh_token": "your_refresh_token"
+  "refreshToken": "your_refresh_token"
 }
 ```
 - **Response:**
@@ -120,7 +121,10 @@ Authorization: Bearer <your_jwt_token>
   "success": true,
   "message": "Token refreshed successfully",
   "data": {
-    "access_token": "new_jwt_access_token"
+    "accessToken": "new_jwt_access_token",
+    "refreshToken": "new_refresh_token",
+    "tokenType": "Bearer",
+    "expiresIn": "2024-01-01T00:00:00Z"
   }
 }
 ```
@@ -159,9 +163,9 @@ All user management endpoints require authentication.
       "name": "John Doe",
       "username": "johndoe",
       "email": "john@example.com",
-      "business_name": "John's Business",
-      "create_at": "2024-01-01T00:00:00Z",
-      "update_at": "2024-01-01T00:00:00Z"
+      "role": "user",
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z"
     }
   ]
 }
@@ -178,7 +182,7 @@ All user management endpoints require authentication.
   "username": "janedoe",
   "email": "jane@example.com",
   "password": "securepassword123",
-  "business_name": "Jane's Business"
+  "role": "user"
 }
 ```
 - **Response:**
@@ -191,9 +195,9 @@ All user management endpoints require authentication.
     "name": "Jane Doe",
     "username": "janedoe",
     "email": "jane@example.com",
-    "business_name": "Jane's Business",
-    "create_at": "2024-01-01T00:00:00Z",
-    "update_at": "2024-01-01T00:00:00Z"
+    "role": "user",
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z"
   }
 }
 ```
@@ -214,9 +218,9 @@ All user management endpoints require authentication.
     "name": "John Doe",
     "username": "johndoe",
     "email": "john@example.com",
-    "business_name": "John's Business",
-    "create_at": "2024-01-01T00:00:00Z",
-    "update_at": "2024-01-01T00:00:00Z"
+    "role": "user",
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z"
   }
 }
 ```
@@ -234,7 +238,7 @@ All user management endpoints require authentication.
   "username": "johnupdated",
   "email": "john.updated@example.com",
   "password": "newpassword123",
-  "business_name": "John's Updated Business"
+  "role": "admin"
 }
 ```
 - **Response:**
@@ -247,9 +251,9 @@ All user management endpoints require authentication.
     "name": "John Updated",
     "username": "johnupdated",
     "email": "john.updated@example.com",
-    "business_name": "John's Updated Business",
-    "create_at": "2024-01-01T00:00:00Z",
-    "update_at": "2024-01-01T00:00:00Z"
+    "role": "admin",
+    "createdAt": "2024-01-01T00:00:00Z",
+    "updatedAt": "2024-01-01T00:00:00Z"
   }
 }
 ```
@@ -269,19 +273,39 @@ All user management endpoints require authentication.
 }
 ```
 
+## User Roles
+
+The application supports three user roles defined in `shared/constants/role.go`:
+
+```go
+type Role string
+
+const (
+    RoleAdmin        Role = "admin"
+    RoleUser         Role = "user"
+    RolePsychiatrist Role = "psychiatrist"
+)
+```
+
+- **`admin`**: Full access to all endpoints, can create, read, update, and delete users
+- **`user`**: Standard user with limited access, can only read their own profile
+- **`psychiatrist`**: Specialized role for mental health professionals
+
+Role-based access control is implemented at the middleware level to ensure proper authorization. Users can only access endpoints appropriate to their role level.
+
 ## Data Models
 
 ### User Model
 ```go
 type User struct {
-    Id           string    `json:"id" gorm:"primary_key;type:char(36);"`
-    Name         string    `json:"name"`
-    Username     string    `json:"username" gorm:"unique;not null"`
-    Email        string    `json:"email" gorm:"unique;not null"`
-    Password     string    `json:"password"`
-    BusinessName string    `json:"business_name"`
-    CreatedAt    time.Time `json:"createdAt"`
-    UpdatedAt    time.Time `json:"updatedAt"`
+    Id        string    `json:"id" gorm:"primary_key;type:char(36);"`
+    Name      string    `json:"name"`
+    Username  string    `json:"username" gorm:"type:varchar(50);uniqueIndex;not null"`
+    Email     string    `json:"email" gorm:"type:varchar(50);uniqueIndex;not null"`
+    Password  string    `json:"password"`
+    Role      string    `json:"role"`
+    CreatedAt time.Time `json:"createdAt" gorm:"column:createdAt;autoCreateTime"`
+    UpdatedAt time.Time `json:"updatedAt" gorm:"column:updatedAt;autoUpdateTime"`
 }
 ```
 
@@ -289,10 +313,10 @@ type User struct {
 ```go
 type RefreshToken struct {
     Id        string    `json:"id" gorm:"primary_key;type:char(36);"`
-    UserId    string    `json:"userId" gorm:"type:char(36);not null;index"`
+    UserId    string    `json:"user_id" gorm:"type:char(36);not null;index"`
     Token     string    `json:"token" gorm:"not null"`
-    ExpiresAt time.Time `json:"expiresAt" gorm:"not null"`
-    CreatedAt time.Time `json:"createdAt" gorm:"autoCreateTime"`
+    ExpiresAt time.Time `json:"expires_at" gorm:"not null"`
+    CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
     Revoked   bool      `json:"revoked" gorm:"default:false"`
     User      User      `gorm:"foreignKey:UserId;constraint:OnDelete:CASCADE;"`
 }
@@ -314,85 +338,241 @@ The API uses standard HTTP status codes:
 ## Validation Rules
 
 ### User Registration/Update
-- `name`: Required, string
-- `username`: Required, unique, string
+- `name`: Required, string, minimum 3 characters, maximum 100 characters
+- `username`: Required, unique, string, minimum 3 characters, maximum 50 characters, alphanumeric only
 - `email`: Required, unique, valid email format
-- `password`: Required, string
-- `business_name`: Required, string
+- `password`: Required, string, minimum 8 characters
+- `role`: Required for user creation, optional for update, maximum 15 characters (admin, user, psychiatrist)
 
 ### Authentication
-- `username`: Required, string
+- `username`: Required, string, minimum 3 characters, maximum 50 characters, alphanumeric only
 - `password`: Required, string
-- `refresh_token`: Required, string
+- `refreshToken`: Required, string
+
+## Middleware
+
+### Authentication Middleware
+- JWT token validation
+- User context injection
+- Token expiration checking
+
+### Logger Middleware
+- Request/response logging
+- Performance metrics
+- Error tracking
+
+### Rate Limiting Middleware
+- Request rate limiting per IP
+- Configurable limits and windows
+- Graceful handling of exceeded limits
 
 ## CORS Configuration
 
 The API supports CORS with the following configuration:
-- **Allowed Origins:** `http://localhost:3000`
+- **Allowed Origins:** Configurable via environment
 - **Allowed Methods:** GET, POST, PUT, PATCH, DELETE, OPTIONS
-- **Allowed Headers:** Origin, Content-Type, Authorization
-- **Exposed Headers:** Content-Length
+- **Allowed Headers:** Origin, Content-Type, Authorization, Accept
+- **Exposed Headers:** Content-Length, X-Total-Count
+- **Credentials:** true
 
 ## Environment Variables
 
 The application uses the following environment variables (configured via `.env` file):
 
+### Application
 - `APP_PORT`: Server port (default: 3000)
-- Database configuration variables (configured in your environment)
+- `GIN_MODE`: Gin mode (debug/release, default: debug)
+
+### Database
+- `DB_HOST`: Database host (default: localhost)
+- `DB_PORT`: Database port (default: 3306)
+- `DB_USER`: Database username
+- `DB_PASS`: Database password
+- `DB_NAME`: Database name
+- `DB_ROOT_PASSWORD`: Database root password
+
+### JWT
+- `JWT_SECRET`: JWT signing secret
+- `JWT_EXPIRY`: JWT expiration time (default: 24h)
+- `REFRESH_TOKEN_EXPIRY`: Refresh token expiration time (default: 168h)
 
 ## Dependencies
 
 ### Core Dependencies
-- **Gin:** Web framework
+- **Gin:** Web framework for HTTP routing
 - **GORM:** ORM for database operations
-- **JWT:** Authentication tokens
-- **MySQL:** Database driver
-- **UUID:** Unique identifier generation
+- **JWT:** Authentication tokens (github.com/golang-jwt/jwt/v5)
+- **MySQL:** Database driver (gorm.io/driver/mysql)
+- **UUID:** Unique identifier generation (github.com/google/uuid)
+- **Bcrypt:** Password hashing (golang.org/x/crypto/bcrypt)
 
 ### Development Dependencies
 - **Godotenv:** Environment variable loading
 - **CORS:** Cross-origin resource sharing
+- **Air:** Hot reload for development
+- **Golang-migrate:** Database migrations
 
 ## Getting Started
 
+### Prerequisites
+- Go 1.21 or higher
+- MySQL 8.0 or higher
+- Docker and Docker Compose (optional)
+
+### Local Development
 1. **Clone the repository**
 2. **Install dependencies:** `go mod download`
 3. **Set up environment variables** in `.env` file
-4. **Run the application:** `go run cmd/main.go`
+4. **Run database migrations:** `go run shared/database/migrations.go`
+5. **Run the application:** `go run cmd/main.go`
+
+### Docker Development
+1. **Set up environment variables** in `.env` file
+2. **Build and run:** `docker-compose up -d`
+3. **View logs:** `docker-compose logs -f app`
+
+### Database Setup
+1. **Create database:** MySQL database with the specified name
+2. **Run migrations:** Execute migration files in `shared/database/migrations/`
+3. **Verify connection:** Check database connectivity
 
 ## Architecture
 
 The application follows a clean, layered architecture:
 
 ```
-├── cmd/           # Application entry point
-├── internal/      # Business logic
-│   ├── auth/      # Authentication module
-│   └── user/      # User management module
-├── shared/        # Shared utilities and configurations
-│   ├── config/    # Configuration management
-│   ├── database/  # Database connection
-│   ├── helpers/   # Utility functions
-│   ├── middlewares/ # HTTP middlewares
-│   ├── models/    # Data models
-│   ├── routes/    # Route setup
-│   └── types/     # Common types
-└── docs/          # Documentation
+├── cmd/                    # Application entry point
+│   └── main.go            # Main application file
+├── internal/               # Business logic (private packages)
+│   ├── auth/               # Authentication module
+│   │   ├── dto/            # Data Transfer Objects
+│   │   ├── errors/         # Domain-specific errors
+│   │   ├── handler/        # HTTP request handlers
+│   │   ├── repository/     # Data access layer
+│   │   ├── routes/         # Route definitions
+│   │   └── service/        # Business logic layer
+│   └── user/               # User management module
+│       ├── dto/            # Data Transfer Objects
+│       ├── errors/         # Domain-specific errors
+│       ├── handler/        # HTTP request handlers
+│       ├── repository/     # Data access layer
+│       ├── routes/         # Route definitions
+│       └── service/        # Business logic layer
+├── shared/                 # Shared utilities and configurations
+│   ├── config/             # Configuration management
+│   ├── constants/          # Application constants
+│   ├── database/           # Database connection and migrations
+│   ├── errors/             # Common error types
+│   ├── helpers/            # Utility functions
+│   ├── logger/             # Logging configuration
+│   ├── middlewares/        # HTTP middlewares
+│   ├── models/             # Data models
+│   ├── routes/             # Route setup and middleware
+│   └── types/              # Common types and interfaces
+├── docs/                   # Documentation
+├── docker-compose.yaml     # Docker services configuration
+├── Dockerfile              # Application container definition
+└── go.mod                  # Go module dependencies
 ```
 
-Each module follows the pattern:
-- **DTOs:** Data Transfer Objects for requests/responses
-- **Handlers:** HTTP request handlers
-- **Services:** Business logic layer
-- **Repositories:** Data access layer
-- **Routes:** Route definitions
+### Module Pattern
+Each module follows the same pattern:
+- **DTOs:** Data Transfer Objects for request/response validation
+- **Handlers:** HTTP request handlers (controller layer)
+- **Services:** Business logic layer (use case layer)
+- **Repositories:** Data access layer (data layer)
+- **Routes:** Route definitions and middleware setup
+- **Errors:** Domain-specific error types
+
+### Dependency Flow
+```
+HTTP Request → Handler → Service → Repository → Database
+     ↓
+HTTP Response ← Handler ← Service ← Repository ← Database
+```
 
 ## Security Features
 
-- JWT-based authentication
-- Password hashing
-- CORS protection
-- Input validation
-- Graceful shutdown handling
-- Database connection management
+- **JWT-based authentication** with configurable expiration
+- **Password hashing** using bcrypt with salt
+- **CORS protection** with configurable origins
+- **Input validation** using custom validators
+- **Rate limiting** to prevent abuse
+- **Graceful shutdown** handling
+- **Database connection** pooling and management
+- **Secure headers** and middleware
+- **Token refresh** mechanism for better security
+
+## Testing
+
+### Running Tests
+```bash
+# Run all tests
+go test ./...
+
+# Run tests with coverage
+go test -cover ./...
+
+# Run specific module tests
+go test ./internal/auth/...
+go test ./internal/user/...
+```
+
+### Test Structure
+- Unit tests for services and repositories
+- Integration tests for handlers
+- Mock implementations for external dependencies
+
+## Deployment
+
+### Production Considerations
+- Set `GIN_MODE=release` for production
+- Use strong JWT secrets
+- Configure proper CORS origins
+- Set up database connection pooling
+- Enable logging and monitoring
+- Use HTTPS in production
+- Set up proper firewall rules
+
+### Environment-Specific Configs
+- Development: Local database, debug logging
+- Staging: Staging database, info logging
+- Production: Production database, error logging only
+
+## Monitoring and Logging
+
+### Logging Levels
+- **DEBUG:** Detailed information for debugging
+- **INFO:** General information about application flow
+- **WARN:** Warning messages for potential issues
+- **ERROR:** Error messages for failed operations
+
+### Metrics
+- Request/response times
+- Database query performance
+- Error rates and types
+- Authentication success/failure rates
+
+## Troubleshooting
+
+### Common Issues
+1. **Database Connection Failed:** Check database credentials and network
+2. **JWT Token Invalid:** Verify JWT secret and token expiration
+3. **CORS Errors:** Check allowed origins configuration
+4. **Rate Limiting:** Adjust rate limit configuration if needed
+
+### Debug Mode
+Enable debug mode by setting `GIN_MODE=debug` to get detailed error information and request logging.
+
+## Contributing
+
+1. Follow the existing code structure and patterns
+2. Add tests for new functionality
+3. Update documentation for API changes
+4. Follow Go coding standards and best practices
+5. Use meaningful commit messages
+
+## License
+
+This project is licensed under the MIT License.
 
