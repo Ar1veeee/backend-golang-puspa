@@ -13,7 +13,7 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtKey = []byte(config.GetEnv("JWT_KEY", "secret_key"))
+var jwtKey = []byte(config.GetEnv("JWT_SECRET", "secret_key"))
 
 func Authenticate() gin.HandlerFunc {
 	return func(c *gin.Context) {

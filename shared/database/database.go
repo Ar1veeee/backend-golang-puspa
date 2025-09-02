@@ -3,20 +3,20 @@ package database
 import (
 	"backend-golang/shared/config"
 	"fmt"
-	"log"
 	"time"
 
+	"github.com/rs/zerolog/log"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
-var DB *gorm.DB
+var db *gorm.DB
 
 func InitDB() {
 	dbName := config.GetEnv("DB_NAME", "")
 	if dbName == "" {
-		log.Fatal("DB_NAME environment variable not set")
+		log.Fatal().Msg("DB_NAME environment variable not set")
 	}
 
 	dbUser := config.GetEnv("DB_USER", "root")
@@ -27,7 +27,7 @@ func InitDB() {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		dbUser, dbPass, dbHost, dbPort, dbName)
 
-	var configLogger = &gorm.Config{
+	configLogger := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
@@ -36,24 +36,23 @@ func InitDB() {
 	}
 
 	var err error
-	DB, err = gorm.Open(mysql.Open(dsn), configLogger)
-
+	db, err = gorm.Open(mysql.Open(dsn), configLogger)
 	if err != nil {
-		log.Fatal("Failed to connect to database: ", err)
+		log.Fatal().Err(err).Msg("Failed to connect to database")
 	}
 
-	if sqlDB, err := DB.DB(); err == nil {
-		sqlDB.SetMaxOpenConns(25)
-		sqlDB.SetMaxIdleConns(10)
-		sqlDB.SetConnMaxLifetime(time.Hour)
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatal().Err(err).Msg("Failed to get underlying sql.DB")
 	}
 
-	fmt.Println("Database connected successfully!")
+	sqlDB.SetMaxOpenConns(25)
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	log.Info().Msg("Database connected successfully!")
 }
 
 func GetDB() *gorm.DB {
-	if DB == nil {
-		log.Fatal("Database not initialized. Call InitDB() first")
-	}
-	return DB
+	return db
 }

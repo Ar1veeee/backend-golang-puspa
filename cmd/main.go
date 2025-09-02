@@ -11,22 +11,25 @@ import (
 	"backend-golang/shared/database"
 	"backend-golang/shared/logger"
 	"backend-golang/shared/routes"
+	"context"
 	"errors"
-	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/golang-migrate/migrate/v4"
-	_ "github.com/golang-migrate/migrate/v4/database/mysql"
+	"github.com/golang-migrate/migrate/v4/database/mysql"
+	"github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 func main() {
 	config.LoadEnv()
-	database.InitDB()
 	logger.InitLogger()
+	database.InitDB()
 
 	runMigrations()
 
@@ -39,56 +42,113 @@ func main() {
 	userHandlers := userHandler.NewUserHandler(userServices)
 	authHandlers := authHandler.NewAuthHandler(authServices)
 
-	setupGracefulShutdown()
-
 	router := routes.SetupRouter(authHandlers, userHandlers)
 
 	port := config.GetEnv("APP_PORT", "3000")
-
-	log.Printf("🚀 Server starting on port %s", port)
-	log.Printf("🌐 Server running at http://localhost:%s", port)
-
-	if err := router.Run(":" + port); err != nil {
-		log.Printf("❌ Failed to start server: %v", err)
+	server := &http.Server{
+		Addr:    ":" + port,
+		Handler: router,
 	}
-}
-
-func setupGracefulShutdown() {
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		<-c
-		log.Println("🛑 Shutting down gracefully...")
-
-		if err := closeDatabase(); err != nil {
-			log.Printf("❌ Error closing database: %v", err)
+		log.Printf("🚀 Server starting on port %s", port)
+		log.Printf("🌐 Server running at http://localhost:%s", port)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("❌ Listen: %s\n", err)
 		}
-		log.Println("✅ Application stopped")
-		os.Exit(0)
 	}()
+
+	setupGracefulShutdown(server)
+}
+
+func setupGracefulShutdown(server *http.Server) {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Println("🛑 Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatal("❌ Server forced to shutdown:", err)
+	}
+
+	if err := closeDatabase(); err != nil {
+		log.Printf("❌ Error closing database: %v", err)
+	}
+
+	log.Println("✅ Server exited gracefully")
 }
 
 func runMigrations() {
-	dbUser := config.GetEnv("DB_USER", "root")
-	dbPass := config.GetEnv("DB_PASS", "")
-	dbHost := config.GetEnv("DB_HOST", "localhost")
-	dbPort := config.GetEnv("DB_PORT", "3306")
-	dbName := config.GetEnv("DB_NAME", "")
+	migrationsPath := "./shared/database/migrations"
 
-	dsn := fmt.Sprintf("mysql://%s:%s@tcp(%s:%s)/%s", dbUser, dbPass, dbHost, dbPort, dbName)
+	if _, err := os.Stat(migrationsPath); os.IsNotExist(err) {
+		log.Printf("⚠️ Warning: Migrations directory not found at %s", migrationsPath)
+		log.Println("⚠️ Skipping database migration")
+		return
+	}
 
-	m, err := migrate.New(
-		"file://shared/database/migrations",
-		dsn,
-	)
+	entries, err := os.ReadDir(migrationsPath)
 	if err != nil {
-		log.Fatal("Failed to create migration instance: ", err)
+		log.Printf("⚠️ Warning: Cannot read migrations directory: %v", err)
+		return
 	}
+
+	hasSQLFiles := false
+	log.Printf("Found %d entries in migrations directory:", len(entries))
+	for _, entry := range entries {
+		log.Printf("- %s (isDir: %t)", entry.Name(), entry.IsDir())
+		if !entry.IsDir() && len(entry.Name()) > 4 && entry.Name()[len(entry.Name())-4:] == ".sql" {
+			hasSQLFiles = true
+		}
+	}
+
+	if !hasSQLFiles {
+		log.Println("⚠️ Warning: No .sql migration files found, skipping database migration")
+		return
+	}
+
+	db, err := database.GetDB().DB()
+	if err != nil {
+		log.Fatal("❌ Failed to get db instance for migration: ", err)
+	}
+
+	driver, err := mysql.WithInstance(db, &mysql.Config{})
+	if err != nil {
+		log.Fatal("❌ Failed to create migrate db driver: ", err)
+	}
+
+	source, err := (&file.File{}).Open("file://" + migrationsPath)
+	if err != nil {
+		log.Fatal("❌ Failed to create file source for migration: ", err)
+	}
+
+	m, err := migrate.NewWithInstance("file", source, "mysql", driver)
+	if err != nil {
+		log.Fatal("❌ Failed to create migration instance: ", err)
+	}
+
+	version, dirty, err := m.Version()
+	if err != nil && !errors.Is(err, migrate.ErrNilVersion) {
+		log.Printf("⚠️ Warning: Could not get current migration version: %v", err)
+	}
+
+	if dirty {
+		log.Printf("⚠️ Database is in dirty state at version %d. Attempting to force version...", version)
+		if err := m.Force(int(version)); err != nil {
+			log.Printf("❌ Failed to force migration version %d: %v", version, err)
+			log.Fatal("❌ Please manually fix the database state or drop and recreate the database")
+		}
+		log.Printf("✅ Successfully forced database to version %d", version)
+	}
+
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		log.Fatal("Failed to apply migrations: ", err)
+		log.Fatal("❌ Failed to apply migrations: ", err)
 	}
-	log.Println("Database migrated successfully")
+
+	log.Println("✅ Database migrated successfully")
 }
 
 func closeDatabase() error {
