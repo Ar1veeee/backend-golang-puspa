@@ -6,7 +6,6 @@ import (
 	userHandler "backend-golang/internal/user/handler"
 	userRoutes "backend-golang/internal/user/routes"
 	"backend-golang/shared/middlewares"
-	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -17,7 +16,6 @@ func SetupRouter(authHandler *authHandler.AuthHandler, userHandler *userHandler.
 	router.Use(
 		gin.Recovery(),
 		middlewares.RequestLogger(),
-		middlewares.RateLimiterIP(10*time.Millisecond, 100),
 	)
 
 	if err := router.SetTrustedProxies([]string{"127.0.0.1"}); err != nil {

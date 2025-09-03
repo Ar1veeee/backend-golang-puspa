@@ -15,10 +15,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/redis/go-redis/v9"
+
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+)
+
+const (
+	maxFailedAttempts = 5
+	lockoutDuration   = 15 * time.Minute
 )
 
 type AuthService interface {
@@ -33,14 +40,20 @@ type authService struct {
 	userService userService.UserService
 	validator   *authValidator
 	mapper      *authMapper
+	redisClient *redis.Client
 }
 
-func NewAuthService(authRepo repository.AuthRepository, userService userService.UserService) AuthService {
+func NewAuthService(
+	authRepo repository.AuthRepository,
+	userService userService.UserService,
+	redisClient *redis.Client,
+) AuthService {
 	return &authService{
 		authRepo:    authRepo,
 		userService: userService,
 		validator:   newAuthValidator(),
 		mapper:      newAuthMapper(),
+		redisClient: redisClient,
 	}
 }
 
@@ -82,10 +95,25 @@ func (a *authService) LoginUser(ctx context.Context, req *dto.LoginRequest) (*dt
 		return nil, err
 	}
 
+	redisKey := fmt.Sprintf("login_attempts:%s", req.Username)
+
+	failedAttempts, err := a.redisClient.Get(ctx, redisKey).Int()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		log.Error().Err(err).Str("username", req.Username).Msg("Failed to get login attempts from Redis")
+		return nil, globalErrors.ErrInternalServer
+	}
+
+	if failedAttempts >= maxFailedAttempts {
+		log.Warn().Str("username", req.Username).Msg("Login attempt blocked due to too many failed attempts")
+		return nil, authErrors.ErrTooManyLoginAttempts
+	}
+
 	var user models.User
 
 	if err := a.authRepo.Login(ctx, req.Username, &user); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			a.redisClient.Incr(ctx, redisKey)
+			a.redisClient.Expire(ctx, redisKey, lockoutDuration)
 			log.Warn().
 				Str("username", req.Username).
 				Msg("Login attempt failed: user not found")
@@ -98,8 +126,14 @@ func (a *authService) LoginUser(ctx context.Context, req *dto.LoginRequest) (*dt
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
+		a.redisClient.Incr(ctx, redisKey)
+		a.redisClient.Expire(ctx, redisKey, lockoutDuration)
 		log.Warn().Str("username", req.Username).Msg("Login attempt failed: invalid password")
 		return nil, userErrors.ErrInvalidCredentials
+	}
+
+	if err := a.redisClient.Del(ctx, redisKey).Err(); err != nil {
+		log.Error().Err(err).Str("username", req.Username).Msg("Failed to delete user from Redis")
 	}
 
 	accessToken, err := helpers.GenerateToken(user.Id, constants.Role(user.Role))
