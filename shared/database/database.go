@@ -2,6 +2,7 @@ package database
 
 import (
 	"backend-golang/shared/config"
+	"embed"
 	"fmt"
 	"time"
 
@@ -11,9 +12,10 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-var db *gorm.DB
+//go:embed migrations/*.sql
+var MigrationsFS embed.FS
 
-func InitDB() {
+func InitDB() (*gorm.DB, error) {
 	dbName := config.GetEnv("DB_NAME", "")
 	if dbName == "" {
 		log.Fatal().Msg("DB_NAME environment variable not set")
@@ -35,15 +37,14 @@ func InitDB() {
 		DisableForeignKeyConstraintWhenMigrating: false,
 	}
 
-	var err error
-	db, err = gorm.Open(mysql.Open(dsn), configLogger)
+	db, err := gorm.Open(mysql.Open(dsn), configLogger)
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to connect to database")
+		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Fatal().Err(err).Msg("Failed to get underlying sql.DB")
+		return nil, fmt.Errorf("failed to get underlying sql.DB: %w", err)
 	}
 
 	sqlDB.SetMaxOpenConns(25)
@@ -51,8 +52,6 @@ func InitDB() {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	log.Info().Msg("Database connected successfully!")
-}
 
-func GetDB() *gorm.DB {
-	return db
+	return db, nil
 }

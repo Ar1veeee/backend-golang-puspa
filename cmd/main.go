@@ -10,6 +10,7 @@ import (
 	"backend-golang/shared/config"
 	"backend-golang/shared/database"
 	"backend-golang/shared/logger"
+	"backend-golang/shared/redis"
 	"backend-golang/shared/routes"
 	"context"
 	"errors"
@@ -22,22 +23,31 @@ import (
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/mysql"
-	"github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/golang-migrate/migrate/v4/source/iofs"
+	"gorm.io/gorm"
 )
 
 func main() {
 	config.LoadEnv()
 	logger.InitLogger()
-	database.InitDB()
+	db, err := database.InitDB()
+	if err != nil {
+		log.Fatalf("Could not connect to the database: %v", err)
+	}
 
-	runMigrations()
+	runMigrations(db)
 
-	userRepository := userRepo.NewUserRepository(database.GetDB())
-	authRepository := authRepo.NewAuthRepository(database.GetDB())
+	redisClient, err := redis.InitRedis()
+	if err != nil {
+		log.Fatalf("Could not connect to Redis: %v", err)
+	}
+
+	userRepository := userRepo.NewUserRepository(db)
+	authRepository := authRepo.NewAuthRepository(db)
 
 	userServices := userService.NewUserService(userRepository)
-	authServices := authService.NewAuthService(authRepository, userServices)
+	authServices := authService.NewAuthService(authRepository, userServices, redisClient)
 
 	userHandlers := userHandler.NewUserHandler(userServices)
 	authHandlers := authHandler.NewAuthHandler(authServices)
@@ -58,101 +68,58 @@ func main() {
 		}
 	}()
 
-	setupGracefulShutdown(server)
+	setupGracefulShutdown(server, db)
 }
 
-func setupGracefulShutdown(server *http.Server) {
+func setupGracefulShutdown(server *http.Server, db *gorm.DB) {
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("🛑 Shutting down server...")
+	log.Println("Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(ctx); err != nil {
-		log.Fatal("❌ Server forced to shutdown:", err)
+		log.Fatal("Server forced to shutdown:", err)
 	}
 
-	if err := closeDatabase(); err != nil {
-		log.Printf("❌ Error closing database: %v", err)
+	if err := closeDatabase(db); err != nil {
+		log.Printf("Error closing database: %v", err)
 	}
 
-	log.Println("✅ Server exited gracefully")
+	log.Println("Server exited gracefully")
 }
 
-func runMigrations() {
-	migrationsPath := "./shared/database/migrations"
-
-	if _, err := os.Stat(migrationsPath); os.IsNotExist(err) {
-		log.Printf("⚠️ Warning: Migrations directory not found at %s", migrationsPath)
-		log.Println("⚠️ Skipping database migration")
-		return
-	}
-
-	entries, err := os.ReadDir(migrationsPath)
+func runMigrations(db *gorm.DB) {
+	sqlDB, err := db.DB()
 	if err != nil {
-		log.Printf("⚠️ Warning: Cannot read migrations directory: %v", err)
-		return
+		log.Fatal("Failed to get db instance for migration: ", err)
 	}
 
-	hasSQLFiles := false
-	log.Printf("Found %d entries in migrations directory:", len(entries))
-	for _, entry := range entries {
-		log.Printf("- %s (isDir: %t)", entry.Name(), entry.IsDir())
-		if !entry.IsDir() && len(entry.Name()) > 4 && entry.Name()[len(entry.Name())-4:] == ".sql" {
-			hasSQLFiles = true
-		}
-	}
-
-	if !hasSQLFiles {
-		log.Println("⚠️ Warning: No .sql migration files found, skipping database migration")
-		return
-	}
-
-	db, err := database.GetDB().DB()
+	driver, err := mysql.WithInstance(sqlDB, &mysql.Config{})
 	if err != nil {
-		log.Fatal("❌ Failed to get db instance for migration: ", err)
+		log.Fatal("Failed to create migrate db driver: ", err)
 	}
 
-	driver, err := mysql.WithInstance(db, &mysql.Config{})
+	source, err := iofs.New(database.MigrationsFS, "migrations")
 	if err != nil {
-		log.Fatal("❌ Failed to create migrate db driver: ", err)
+		log.Fatal("Failed to create iofs source for migration: ", err)
 	}
 
-	source, err := (&file.File{}).Open("file://" + migrationsPath)
+	m, err := migrate.NewWithInstance("iofs", source, "mysql", driver)
 	if err != nil {
-		log.Fatal("❌ Failed to create file source for migration: ", err)
-	}
-
-	m, err := migrate.NewWithInstance("file", source, "mysql", driver)
-	if err != nil {
-		log.Fatal("❌ Failed to create migration instance: ", err)
-	}
-
-	version, dirty, err := m.Version()
-	if err != nil && !errors.Is(err, migrate.ErrNilVersion) {
-		log.Printf("⚠️ Warning: Could not get current migration version: %v", err)
-	}
-
-	if dirty {
-		log.Printf("⚠️ Database is in dirty state at version %d. Attempting to force version...", version)
-		if err := m.Force(int(version)); err != nil {
-			log.Printf("❌ Failed to force migration version %d: %v", version, err)
-			log.Fatal("❌ Please manually fix the database state or drop and recreate the database")
-		}
-		log.Printf("✅ Successfully forced database to version %d", version)
+		log.Fatal("Failed to create migration instance: ", err)
 	}
 
 	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		log.Fatal("❌ Failed to apply migrations: ", err)
+		log.Fatal("Failed to apply migrations: ", err)
 	}
 
-	log.Println("✅ Database migrated successfully")
+	log.Println("Database migrated successfully")
 }
 
-func closeDatabase() error {
-	db := database.GetDB()
+func closeDatabase(db *gorm.DB) error {
 	if db != nil {
 		sqlDB, err := db.DB()
 		if err != nil {
