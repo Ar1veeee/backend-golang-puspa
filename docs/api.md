@@ -67,7 +67,7 @@ Authorization: Bearer <your_jwt_token>
     "name": "John Doe",
     "username": "johndoe",
     "email": "john@example.com",
-    "role": "user",
+    "role": "therapist",
     "createdAt": "2024-01-01T00:00:00Z",
     "updatedAt": "2024-01-01T00:00:00Z"
   }
@@ -95,7 +95,7 @@ Authorization: Bearer <your_jwt_token>
     "name": "John Doe",
     "username": "johndoe",
     "email": "john@example.com",
-    "role": "user",
+    "role": "therapist",
     "accessToken": "jwt_access_token",
     "tokenType": "Bearer",
     "refreshToken": "refresh_token_string",
@@ -163,7 +163,7 @@ All user management endpoints require authentication.
       "name": "John Doe",
       "username": "johndoe",
       "email": "john@example.com",
-      "role": "user",
+      "role": "therapist",
       "createdAt": "2024-01-01T00:00:00Z",
       "updatedAt": "2024-01-01T00:00:00Z"
     }
@@ -182,7 +182,7 @@ All user management endpoints require authentication.
   "username": "janedoe",
   "email": "jane@example.com",
   "password": "securepassword123",
-  "role": "user"
+  "role": "therapist"
 }
 ```
 - **Response:**
@@ -195,7 +195,7 @@ All user management endpoints require authentication.
     "name": "Jane Doe",
     "username": "janedoe",
     "email": "jane@example.com",
-    "role": "user",
+    "role": "therapist",
     "createdAt": "2024-01-01T00:00:00Z",
     "updatedAt": "2024-01-01T00:00:00Z"
   }
@@ -218,7 +218,7 @@ All user management endpoints require authentication.
     "name": "John Doe",
     "username": "johndoe",
     "email": "john@example.com",
-    "role": "user",
+    "role": "therapist",
     "createdAt": "2024-01-01T00:00:00Z",
     "updatedAt": "2024-01-01T00:00:00Z"
   }
@@ -282,7 +282,7 @@ type Role string
 
 const (
     RoleAdmin        Role = "admin"
-    RoleUser         Role = "user"
+    RoleUser         Role = "therapist"
     RolePsychiatrist Role = "psychiatrist"
 )
 ```
@@ -515,7 +515,7 @@ go test -cover ./...
 
 # Run specific module tests
 go test ./internal/auth/...
-go test ./internal/user/...
+go test ./internal/therapist/...
 ```
 
 ### Test Structure

@@ -5,12 +5,12 @@ services:
       - "3000:3000"
     environment:
       APP_PORT: ${APP_PORT:-3000}
-      DB_HOST: db
+      DB_HOST: ${DB_HOST}
       DB_PORT: ${DB_PORT:-3306}
+      DB_NAME: ${DB_NAME}
       DB_USER: ${DB_USER}
       DB_PASS: ${DB_PASS}
-      DB_NAME: ${DB_NAME}
-      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
       JWT_SECRET: ${JWT_SECRET}
       GIN_MODE: ${GIN_MODE:-debug}
     env_file:

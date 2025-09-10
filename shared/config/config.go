@@ -7,6 +7,8 @@ import (
 	"github.com/joho/godotenv"
 )
 
+var JWTKey []byte
+
 func LoadEnv() {
 	wd, _ := os.Getwd()
 	log.Printf("Current working directory: %s", wd)
@@ -23,6 +25,12 @@ func LoadEnv() {
 	} else {
 		log.Println("✅ .env file loaded successfully")
 	}
+
+	key := os.Getenv("JWT_SECRET")
+	if key == "" {
+		log.Fatalf("JWT_SECRET is not set in environment")
+	}
+	JWTKey = []byte(key)
 }
 
 func GetEnv(key string, defaultValue string) string {

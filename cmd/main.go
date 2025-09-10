@@ -1,19 +1,25 @@
 package main
 
 import (
-	authHandler "backend-golang/internal/auth/handler"
-	authRepo "backend-golang/internal/auth/repository"
-	authService "backend-golang/internal/auth/service"
-	userHandler "backend-golang/internal/user/handler"
-	userRepo "backend-golang/internal/user/repository"
-	userService "backend-golang/internal/user/service"
+	authHandler "backend-golang/internal/auth/delivery/http/handler"
+	authRepo "backend-golang/internal/auth/repository/gorm"
+	authService "backend-golang/internal/auth/usecase"
+	registrationHandler "backend-golang/internal/registration/delivery/http/handler"
+	registrationRepo "backend-golang/internal/registration/repository"
+	registrationService "backend-golang/internal/registration/service"
+	therapistHandler "backend-golang/internal/therapist/delivery/http/handler"
+	therapistRepo "backend-golang/internal/therapist/repository"
+	therapistService "backend-golang/internal/therapist/service"
 	"backend-golang/shared/config"
 	"backend-golang/shared/database"
+	"backend-golang/shared/database/migrations"
+	"backend-golang/shared/helpers"
 	"backend-golang/shared/logger"
 	"backend-golang/shared/redis"
 	"backend-golang/shared/routes"
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -21,10 +27,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/mysql"
+	"github.com/go-gormigrate/gormigrate/v2"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"gorm.io/gorm"
 )
 
@@ -36,23 +40,32 @@ func main() {
 		log.Fatalf("Could not connect to the database: %v", err)
 	}
 
-	runMigrations(db)
+	if err := runMigrations(db); err != nil {
+		log.Fatalf("Migration failed: %v", err)
+	}
 
-	redisClient, err := redis.InitRedis()
+	redisClient, err := redis.GetRedisClient()
 	if err != nil {
 		log.Fatalf("Could not connect to Redis: %v", err)
 	}
 
-	userRepository := userRepo.NewUserRepository(db)
+	if err := helpers.InitMailjet(); err != nil {
+		log.Fatalf("Failed to initialize Mailjet: %v", err)
+	}
+
+	registrationRepository := registrationRepo.NewRegistrationRepository(db)
 	authRepository := authRepo.NewAuthRepository(db)
+	therapistRepository := therapistRepo.NewTherapistRepository(db)
 
-	userServices := userService.NewUserService(userRepository)
-	authServices := authService.NewAuthService(authRepository, userServices, redisClient)
+	registrationServices := registrationService.NewRegistrationService(registrationRepository)
+	authServices := authService.NewAuthUseCase(authRepository, redisClient)
+	therapistServices := therapistService.NewTherapistService(therapistRepository)
 
-	userHandlers := userHandler.NewUserHandler(userServices)
+	registrationHandlers := registrationHandler.NewRegistrationHandler(registrationServices)
 	authHandlers := authHandler.NewAuthHandler(authServices)
+	therapistHandlers := therapistHandler.NewTherapistHandler(therapistServices)
 
-	router := routes.SetupRouter(authHandlers, userHandlers)
+	router := routes.SetupRouter(registrationHandlers, authHandlers, therapistHandlers)
 
 	port := config.GetEnv("APP_PORT", "3000")
 	server := &http.Server{
@@ -91,32 +104,71 @@ func setupGracefulShutdown(server *http.Server, db *gorm.DB) {
 	log.Println("Server exited gracefully")
 }
 
-func runMigrations(db *gorm.DB) {
-	sqlDB, err := db.DB()
-	if err != nil {
-		log.Fatal("Failed to get db instance for migration: ", err)
+func runMigrations(db *gorm.DB) error {
+	dialect := db.Dialector.Name()
+	if dialect != "mysql" {
+		return fmt.Errorf("unsupported SQL dialect: %s, expected mysql", dialect)
 	}
 
-	driver, err := mysql.WithInstance(sqlDB, &mysql.Config{})
-	if err != nil {
-		log.Fatal("Failed to create migrate db driver: ", err)
-	}
+	m := gormigrate.New(db, gormigrate.DefaultOptions, []*gormigrate.Migration{
+		{
+			ID:       "202509051710_create_users_table",
+			Migrate:  migrations.MigrateCreateUsersTable,
+			Rollback: migrations.RollbackCreateUsersTable,
+		},
+		{
+			ID:       "202509051711_seed_admin_user",
+			Migrate:  migrations.SeedUsersTableUp,
+			Rollback: migrations.SeedUsersTableDown,
+		},
+		{
+			ID:       "202509051712_create_refresh_tokens_table",
+			Migrate:  migrations.MigrateCreateRefreshTokensTable,
+			Rollback: migrations.RollbackCreateRefreshTokensTable,
+		},
+		{
+			ID:       "202509051737_create_parents_table",
+			Migrate:  migrations.MigrateCreateParentsTable,
+			Rollback: migrations.RollbackCreateParentsTable,
+		},
+		{
+			ID:       "202509051739_create_parent_details_table",
+			Migrate:  migrations.MigrateCreateParentDetailsTable,
+			Rollback: migrations.RollbackCreateParentDetailsTable,
+		},
+		{
+			ID:       "202509051742_create_childrens_table",
+			Migrate:  migrations.MigrateCreateChildrensTable,
+			Rollback: migrations.RollbackCreateChildrensTable,
+		},
+		{
+			ID:       "202509051744_create_therapists_table",
+			Migrate:  migrations.MigrateCreateTherapistsTable,
+			Rollback: migrations.RollbackCreateTherapistsTable,
+		},
+		{
+			ID:       "202509071113_create_verification_codes_table",
+			Migrate:  migrations.MigrateCreateVerificationCodesTable,
+			Rollback: migrations.RollbackCreateVerificationCodesTable,
+		},
+		{
+			ID:       "202509080509_create_observations_table",
+			Migrate:  migrations.MigrateCreateObservationsTable,
+			Rollback: migrations.RollbackCreateObservationsTable,
+		},
+		{
+			ID:       "202509080512_create_observation_answers_table",
+			Migrate:  migrations.MigrateCreateObservationAnswersTable,
+			Rollback: migrations.RollbackCreateObservationAnswersTable,
+		},
+	})
 
-	source, err := iofs.New(database.MigrationsFS, "migrations")
-	if err != nil {
-		log.Fatal("Failed to create iofs source for migration: ", err)
-	}
-
-	m, err := migrate.NewWithInstance("iofs", source, "mysql", driver)
-	if err != nil {
-		log.Fatal("Failed to create migration instance: ", err)
-	}
-
-	if err := m.Up(); err != nil && !errors.Is(err, migrate.ErrNoChange) {
-		log.Fatal("Failed to apply migrations: ", err)
+	if err := m.Migrate(); err != nil {
+		return fmt.Errorf("migration failed: %w", err)
 	}
 
 	log.Println("Database migrated successfully")
+	return nil
 }
 
 func closeDatabase(db *gorm.DB) error {
