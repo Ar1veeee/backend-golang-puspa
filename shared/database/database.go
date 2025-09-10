@@ -2,7 +2,6 @@ package database
 
 import (
 	"backend-golang/shared/config"
-	"embed"
 	"fmt"
 	"time"
 
@@ -11,9 +10,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
-
-//go:embed migrations/*.sql
-var MigrationsFS embed.FS
 
 func InitDB() (*gorm.DB, error) {
 	dbName := config.GetEnv("DB_NAME", "")
@@ -30,7 +26,7 @@ func InitDB() (*gorm.DB, error) {
 		dbUser, dbPass, dbHost, dbPort, dbName)
 
 	configLogger := &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Silent),
+		Logger: logger.Default.LogMode(logger.Info),
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
@@ -51,7 +47,8 @@ func InitDB() (*gorm.DB, error) {
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	log.Info().Msg("Database connected successfully!")
+	log.Info().Msgf("Database dialect configured: %s", db.Dialector.Name())
 
+	log.Info().Msg("Database connected successfully!")
 	return db, nil
 }

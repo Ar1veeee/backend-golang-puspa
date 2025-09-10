@@ -3,7 +3,7 @@ package constants
 type Role string
 
 const (
-	RoleAdmin     Role = "admin"
-	RoleUser      Role = "user"
-	RoleTherapist Role = "therapist"
+	RoleAdmin     Role = "Admin"
+	RoleUser      Role = "User"
+	RoleTherapist Role = "Terapis"
 )
