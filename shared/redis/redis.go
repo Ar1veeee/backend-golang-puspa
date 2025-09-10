@@ -4,26 +4,36 @@ import (
 	"backend-golang/shared/config"
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/redis/go-redis/v9"
 )
 
-func InitRedis() (*redis.Client, error) {
-	redisHost := config.GetEnv("REDIS_HOST", "127.0.0.1")
-	redisPort := config.GetEnv("REDIS_PORT", "6379")
-	redisPassword := config.GetEnv("REDIS_PASSWORD", "")
+var (
+	redisClient *redis.Client
+	once        sync.Once
+	initErr     error
+)
 
-	addr := fmt.Sprintf("%s:%s", redisHost, redisPort)
+func GetRedisClient() (*redis.Client, error) {
+	once.Do(func() {
+		redisHost := config.GetEnv("REDIS_HOST", "127.0.0.1")
+		redisPort := config.GetEnv("REDIS_PORT", "6379")
+		redisPassword := config.GetEnv("REDIS_PASSWORD", "")
 
-	client := redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Password: redisPassword,
-		DB:       0,
+		addr := fmt.Sprintf("%s:%s", redisHost, redisPort)
+
+		redisClient = redis.NewClient(&redis.Options{
+			Addr:     addr,
+			Password: redisPassword,
+			DB:       0,
+		})
+
+		if err := redisClient.Ping(context.Background()).Err(); err != nil {
+			initErr = fmt.Errorf("failed to connect to Redis: %v", err)
+			return
+		}
 	})
 
-	if err := client.Ping(context.Background()).Err(); err != nil {
-		return nil, fmt.Errorf("failed to connect to Redis: %v", err)
-	}
-
-	return client, nil
+	return redisClient, initErr
 }

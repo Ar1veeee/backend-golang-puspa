@@ -10,8 +10,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtKey = []byte(config.GetEnv("JWT_SECRET", "secret_key"))
-
 type AppClaims struct {
 	Role constants.Role `json:"role"`
 	jwt.RegisteredClaims
@@ -31,7 +29,7 @@ func GenerateToken(userId string, role constants.Role) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(jwtKey)
+	return token.SignedString(config.JWTKey)
 }
 
 func GenerateRefreshToken() (string, time.Time, error) {

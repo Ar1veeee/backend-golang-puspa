@@ -13,8 +13,6 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-var jwtKey = []byte(config.GetEnv("JWT_SECRET", "secret_key"))
-
 func Authenticate() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
@@ -41,7 +39,7 @@ func Authenticate() gin.HandlerFunc {
 		claims := &helpers.AppClaims{}
 
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			return jwtKey, nil
+			return config.JWTKey, nil
 		})
 
 		if err != nil || !token.Valid {

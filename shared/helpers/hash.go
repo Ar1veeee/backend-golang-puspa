@@ -1,7 +1,7 @@
 package helpers
 
 import (
-	userErrors "backend-golang/internal/user/errors"
+	globalErrors "backend-golang/shared/errors"
 	"regexp"
 
 	"golang.org/x/crypto/bcrypt"
@@ -17,22 +17,22 @@ func HashPassword(password string) (string, error) {
 
 func IsValidPassword(password string) error {
 	if len(password) < 8 {
-		return userErrors.ErrWeakPassword
+		return globalErrors.ErrWeakPassword
 	}
 
 	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
 	if !hasUpper {
-		return userErrors.ErrPasswordUpper
+		return globalErrors.ErrPasswordUpper
 	}
 
 	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
 	if !hasNumber {
-		return userErrors.ErrPasswordNumber
+		return globalErrors.ErrPasswordNumber
 	}
 
 	hasSpecial := regexp.MustCompile(`[^a-zA-Z0-9]`).MatchString(password)
 	if !hasSpecial {
-		return userErrors.ErrPasswordSpecial
+		return globalErrors.ErrPasswordSpecial
 	}
 
 	return nil

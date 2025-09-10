@@ -1,7 +1,9 @@
 package helpers
 
 import (
-	userErrors "backend-golang/internal/user/errors"
+	globalErrors "backend-golang/shared/errors"
+	"regexp"
+
 	"errors"
 	"fmt"
 	"strings"
@@ -43,10 +45,10 @@ func TranslateErrorMessage(err error) map[string]string {
 
 		if strings.Contains(strings.ToLower(err.Error()), "Duplicate entry") {
 			if strings.Contains(err.Error(), "username") {
-				errorsMap["Username"] = userErrors.ErrUsernameExists.Error()
+				errorsMap["Username"] = globalErrors.ErrUsernameExists.Error()
 			}
 			if strings.Contains(err.Error(), "email") {
-				errorsMap["Email"] = userErrors.ErrEmailExists.Error()
+				errorsMap["Email"] = globalErrors.ErrEmailExists.Error()
 			}
 		} else if errors.Is(err, gorm.ErrRecordNotFound) {
 			errorsMap["Error"] = "Record not found"
@@ -54,4 +56,9 @@ func TranslateErrorMessage(err error) map[string]string {
 	}
 
 	return errorsMap
+}
+
+func IsValidEmail(email string) bool {
+	var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
+	return emailRegex.MatchString(email)
 }
