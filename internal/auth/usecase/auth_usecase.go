@@ -1,4 +1,4 @@
-package service
+package usecase
 
 import (
 	"backend-golang/internal/auth/delivery/http/dto"
@@ -7,18 +7,14 @@ import (
 	"backend-golang/shared/constants"
 	globalErrors "backend-golang/shared/errors"
 	"backend-golang/shared/helpers"
-	"backend-golang/shared/models"
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
-
 	"github.com/rs/zerolog/log"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
 
 const (
@@ -26,7 +22,7 @@ const (
 	lockoutDuration   = 15 * time.Minute
 )
 
-type AuthService interface {
+type AuthUseCase interface {
 	RegisterService(ctx context.Context, req *dto.RegisterRequest) error
 	VerifyEmailService(ctx context.Context, req *dto.VerifyCodeRequest) error
 	ForgetPasswordService(ctx context.Context, req *dto.ForgetPasswordRequest) error
@@ -35,70 +31,87 @@ type AuthService interface {
 	LogoutService(ctx context.Context, refreshToken string) error
 }
 
-type authService struct {
+type authUseCase struct {
 	authRepo    repository.AuthRepository
-	validator   *authValidator
-	mapper      *authMapper
+	validator   AuthValidator
+	mapper      AuthMapper
 	redisClient *redis.Client
 }
 
-func NewAuthService(
+func NewAuthUseCase(
 	authRepo repository.AuthRepository,
 	redisClient *redis.Client,
-) AuthService {
-	return &authService{
+) AuthUseCase {
+	return &authUseCase{
 		authRepo:    authRepo,
-		validator:   newAuthValidator(),
-		mapper:      newAuthMapper(),
+		validator:   NewAuthValidator(),
+		mapper:      NewAuthMapper(),
 		redisClient: redisClient,
 	}
 }
 
-func (a *authService) RegisterService(ctx context.Context, req *dto.RegisterRequest) error {
-	if err := a.validator.validateRegisterRequest(req); err != nil {
+func (uc *authUseCase) RegisterService(ctx context.Context, req *dto.RegisterRequest) error {
+	if err := uc.validator.ValidateRegisterRequest(req); err != nil {
+		log.Warn().Err(err).Str("email", req.Email).Msg("Registration validation failed")
 		return err
 	}
 
-	exists, err := a.authRepo.ExistsByEmail(ctx, req.Email)
+	exists, err := uc.authRepo.ExistsByEmail(ctx, req.Email)
 	if err != nil {
-		return fmt.Errorf("%w: %v", globalErrors.ErrDatabaseConnection, err)
+		log.Error().Err(err).Str("email", req.Email).Msg("Failed to check email existence")
+		return globalErrors.ErrInternalServer
 	}
 	if exists {
+		log.Warn().Str("email", req.Email).Msg("Registration failed: email already exists")
 		return globalErrors.ErrEmailExists
 	}
 
-	exists, err = a.authRepo.ExistsByUsername(ctx, req.Username)
+	exists, err = uc.authRepo.ExistsByUsername(ctx, req.Username)
 	if err != nil {
-		return fmt.Errorf("%w: %v", globalErrors.ErrDatabaseConnection, err)
+		log.Error().Err(err).Str("username", req.Username).Msg("Failed to check username existence")
+		return globalErrors.ErrInternalServer
 	}
 	if exists {
+		log.Warn().Str("username", req.Username).Msg("Registration failed: username already exists")
 		return globalErrors.ErrUsernameExists
 	}
 
-	parent, err := a.authRepo.GetParentByTempEmail(ctx, req.Email)
+	parent, err := uc.authRepo.GetParentByTempEmail(ctx, req.Email)
 	if err != nil {
-		return fmt.Errorf("failed to validate parent email: %w", err)
+		log.Error().Err(err).Str("email", req.Email).Msg("Failed to get parent of user")
+		return globalErrors.ErrInternalServer
 	}
 	if parent == nil {
+		log.Warn().Str("email", req.Email).Msg("No parent found with temp_email")
 		return fmt.Errorf("no parent found with temp_email: %s", req.Email)
 	}
 
-	user, verificationCode, err := a.mapper.createRequestToRegister(req)
+	user, err := uc.mapper.RegisterRequestToUser(req)
 	if err != nil {
-		return err
+		log.Error().Err(err).Str("email", req.Email).Msg("Failed to create user entity")
+		return fmt.Errorf("failed to create user: %w", err)
 	}
 
-	if err := a.authRepo.CreateUser(ctx, user); err != nil {
-		return fmt.Errorf("%w: %v", authErrors.ErrUserCreationFailed, err)
+	if err := uc.authRepo.CreateUser(ctx, user); err != nil {
+		log.Error().Err(err).Str("email", req.Email).Msg("Failed to create user in database")
+		return globalErrors.ErrInternalServer
 	}
 
-	if err := a.authRepo.SaveVerificationCode(ctx, verificationCode); err != nil {
-		return fmt.Errorf("failed to save verification code: %w", err)
+	verificationCode, err := uc.mapper.CreateVerificationCodeWithEmail(user.Id, user.Email, user.Username)
+	if err != nil {
+		log.Error().Err(err).Str("userId", user.Id).Msg("Failed to create verification code")
 	}
 
-	parent.UserId = &user.Id
-	if err := a.authRepo.InsertParentUserId(ctx, parent); err != nil {
-		return fmt.Errorf("failed to update parent with user_id: %w", err)
+	if verificationCode != nil {
+		if err := uc.authRepo.SaveVerificationCode(ctx, verificationCode); err != nil {
+			log.Error().Err(err).Str("userId", user.Id).Msg("Failed to save verification code")
+			return globalErrors.ErrInternalServer
+		}
+	}
+
+	if err := uc.authRepo.UpdateParentUserId(ctx, parent.TempEmail, user.Id); err != nil {
+		log.Error().Err(err).Str("userId", user.Id).Msg("Failed to update parent of user")
+		return globalErrors.ErrInternalServer
 	}
 
 	log.Info().Str("userId", user.Id).Str("email", req.Email).Msg("User registered and verification email sent")
@@ -106,100 +119,76 @@ func (a *authService) RegisterService(ctx context.Context, req *dto.RegisterRequ
 	return nil
 }
 
-func (a *authService) VerifyEmailService(ctx context.Context, req *dto.VerifyCodeRequest) error {
-	if err := a.validator.validateVerifyEmailRequest(req); err != nil {
+func (uc *authUseCase) VerifyEmailService(ctx context.Context, req *dto.VerifyCodeRequest) error {
+	if err := uc.validator.ValidateVerifyCodeRequest(req); err != nil {
+		log.Warn().Err(err).Str("code", req.Code).Msg("Verify code validation failed")
 		return err
 	}
 
-	var verifyCode models.VerificationCode
+	verificationCode, err := uc.authRepo.VerifyEmailByCode(ctx, req.Code)
+	if err != nil {
+		log.Warn().Err(err).Str("code", req.Code).Msg("Invalid verification code")
+		return authErrors.ErrInvalidCode
+	}
 
-	if err := a.authRepo.VerifyEmailByCode(ctx, req.Code, &verifyCode); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			log.Warn().
-				Str("identifier", req.Code).
-				Msg("Verify attempt failed: code not found")
-			return authErrors.ErrInvalidCode
-		}
-		if err.Error() == "verification code has expired" {
-			log.Warn().
-				Str("code", verifyCode.Code).
-				Msg("Verify attempt failed: code has expired")
-			return authErrors.ErrInvalidCode
-		}
-		log.Error().Err(err).Str("code", req.Code).Msg("Failed to verify email")
-		return fmt.Errorf("verification failed: %w", err)
+	if verificationCode.IsExpired() {
+		log.Warn().Str("code", req.Code).Str("userId", verificationCode.UserId).Msg("Verification code expired")
+	}
+
+	if err := uc.authRepo.UpdateUserActiveStatus(ctx, verificationCode.UserId, true); err != nil {
+		log.Error().Err(err).Str("userId", verificationCode.UserId).Msg("Failed to activate user")
+		return globalErrors.ErrInternalServer
 	}
 
 	log.Info().
-		Str("userId", verifyCode.UserId).
-		Str("email", verifyCode.User.Email).
+		Str("userId", verificationCode.UserId).
 		Msg("Email verified successfully")
 
 	return nil
 }
 
-func (a *authService) ForgetPasswordService(ctx context.Context, req *dto.ForgetPasswordRequest) error {
-	if err := a.validator.validateForgetPasswordRequest(req); err != nil {
+func (uc *authUseCase) ForgetPasswordService(ctx context.Context, req *dto.ForgetPasswordRequest) error {
+	if err := uc.validator.ValidateForgetPasswordRequest(req); err != nil {
 		return err
 	}
 
-	var user models.User
-	if err := a.authRepo.FindUserByEmail(ctx, req.Email, &user); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			log.Warn().
-				Str("email", req.Email).
-				Msg("Reset password attempt failed: email not found")
-			return globalErrors.ErrInvalidCredentials
-		}
-		log.Error().Err(err).Str("email", req.Email).Msg("Failed to reset password")
-		return fmt.Errorf("reset password failed: %w", err)
-	}
-
-	verificationCode, err := a.mapper.createRequestToForgetPassword(req, a.authRepo)
+	user, err := uc.authRepo.FindUserByEmail(ctx, req.Email)
 	if err != nil {
-		return err
+		log.Warn().Err(err).Str("email", req.Email).Msg("Reset password attempt failed: email not found")
+		return nil
 	}
 
-	if err := a.authRepo.SaveVerificationCode(ctx, verificationCode); err != nil {
-		return fmt.Errorf("failed to save verification code: %w", err)
+	verificationCode, err := uc.mapper.CreateForgerPasswordCode(user.Id, user.Email, user.Username)
+	if err != nil {
+		log.Warn().Err(err).Str("userId", user.Id).Msg("Failed to create forget password code")
+		return globalErrors.ErrInternalServer
 	}
 
+	if err := uc.authRepo.SaveVerificationCode(ctx, verificationCode); err != nil {
+		log.Error().Err(err).Str("userId", user.Id).Msg("Failed to save verification code")
+		return globalErrors.ErrInternalServer
+	}
+
+	log.Info().Str("userId", user.Id).Str("email", req.Email).Msg("Forget password code sent")
 	return nil
 }
 
-func (a *authService) LoginService(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, error) {
-	if err := a.validator.validateLoginRequest(req); err != nil {
+func (uc *authUseCase) LoginService(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, error) {
+	if err := uc.validator.ValidateLoginRequest(req); err != nil {
+		log.Warn().Err(err).Str("identifier", req.Identifier).Msg("Login validation failed")
 		return nil, err
 	}
 
-	redisKey := fmt.Sprintf("login_attempts:%s", req.Identifier)
-
-	failedAttempts, err := a.redisClient.Get(ctx, redisKey).Int()
-	if err != nil && !errors.Is(err, redis.Nil) {
-		log.Error().Err(err).Str("username", req.Identifier).Msg("Failed to get login attempts from Redis")
-		return nil, globalErrors.ErrInternalServer
+	if err := uc.checkLoginRateLimit(ctx, req.Identifier); err != nil {
+		log.Warn().Err(err).Str("identifier", req.Identifier).Msg("Login blocked due to rate limiting")
+		return nil, err
 	}
 
-	if failedAttempts >= maxFailedAttempts {
-		log.Warn().Str("username", req.Identifier).Msg("Login attempt blocked due to too many failed attempts")
-		return nil, authErrors.ErrTooManyLoginAttempts
-	}
-
-	var user models.User
-
-	if err := a.authRepo.FindUserByUsernamAndEmail(ctx, req.Identifier, &user); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			a.redisClient.Incr(ctx, redisKey)
-			a.redisClient.Expire(ctx, redisKey, lockoutDuration)
-			log.Warn().
-				Str("identifier", req.Identifier).
-				Msg("Login attempt failed: user not found")
-			return nil, globalErrors.ErrInvalidCredentials
-		}
-		log.Error().
-			Str("identifier", req.Identifier).
-			Msg("Failed to retrieve user from repository")
-		return nil, fmt.Errorf("%w: %v", authErrors.ErrUserRetrievalFailed, err)
+	user, err := uc.authRepo.FindUserByUsernameAndEmail(ctx, req.Identifier)
+	if err != nil {
+		uc.incrementFailedAttempts(ctx, req.Identifier)
+		log.Warn().Str("identifier", req.Identifier).Msg("Login attempt failed: user not found")
+		return nil, globalErrors.ErrInvalidCredentials
 	}
 
 	if !user.IsActive {
@@ -210,255 +199,141 @@ func (a *authService) LoginService(ctx context.Context, req *dto.LoginRequest) (
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		a.redisClient.Incr(ctx, redisKey)
-		a.redisClient.Expire(ctx, redisKey, lockoutDuration)
-		log.Warn().Str("username", req.Identifier).Msg("Login attempt failed: invalid password")
+		uc.incrementFailedAttempts(ctx, req.Identifier)
+		log.Warn().Str("username", req.Identifier).Str("userId", user.Id).Msg("Login attempt failed: invalid password")
 		return nil, globalErrors.ErrInvalidCredentials
 	}
 
-	if err := a.redisClient.Del(ctx, redisKey).Err(); err != nil {
-		log.Error().Err(err).Str("username", req.Identifier).Msg("Failed to delete user from Redis")
-	}
+	uc.clearFailedAttempts(ctx, req.Identifier)
 
 	accessToken, err := helpers.GenerateToken(user.Id, constants.Role(user.Role))
 	if err != nil {
+		log.Error().Err(err).Str("userId", user.Id).Msg("Failed to generate access token")
 		return nil, authErrors.ErrGenerateToken
 	}
 
-	refreshToken, err := a.createAndSaveRefreshToken(ctx, user.Id)
+	refreshToken, err := uc.createAndSaveRefreshToken(ctx, user.Id)
 	if err != nil {
+		log.Error().Err(err).Str("userId", user.Id).Msg("Failed to generate refresh token")
 		return nil, err
 	}
+
+	response := uc.mapper.UserToLoginResponse(user)
+	response.AccessToken = accessToken
+	response.RefreshToken = refreshToken
 
 	log.Info().
 		Str("userId", user.Id).
 		Str("username", user.Username).
 		Msg("Successfully logged in")
 
-	response := a.mapper.loginToResponse(&user)
-	response.AccessToken = accessToken
-	response.RefreshToken = refreshToken
-
 	return response, nil
 }
 
-func (a *authService) createAndSaveRefreshToken(ctx context.Context, userID string) (string, error) {
-	refreshTokenString, expiresAt, err := helpers.GenerateRefreshToken()
+func (uc *authUseCase) RefreshTokenService(ctx context.Context, req *dto.RefreshTokenRequest) (*dto.RefreshTokenResponse, error) {
+	if req.RefreshToken == "" {
+		log.Warn().Msg("Refresh token cannot be nil")
+		return nil, authErrors.ErrInvalidRefreshToken
+	}
+
+	refreshToken, err := uc.authRepo.FindRefreshToken(ctx, req.RefreshToken)
 	if err != nil {
-		return "", authErrors.ErrGenerateRefreshToken
+		log.Warn().Str("token", req.RefreshToken[:10]+"...").Msg("Invalid refresh token provided")
+		return nil, authErrors.ErrInvalidRefreshToken
 	}
 
-	refreshTokenModel := &models.RefreshToken{
-		UserId:    userID,
-		Token:     refreshTokenString,
-		ExpiresAt: expiresAt,
-		Revoked:   false,
+	if err := refreshToken.IsValid(); err != nil {
+		return nil, authErrors.ErrInvalidRefreshToken
 	}
 
-	if err := a.authRepo.SaveRefreshToken(ctx, refreshTokenModel); err != nil {
-		log.Error().Err(err).Str("user_id", userID).Msg("Failed to save refresh token to database")
-		return "", authErrors.ErrSaveRefreshToken
-	}
-
-	return refreshTokenString, nil
-}
-
-func (a *authService) RefreshTokenService(ctx context.Context, req *dto.RefreshTokenRequest) (*dto.RefreshTokenResponse, error) {
-	var token models.RefreshToken
-
-	if err := a.authRepo.RefreshToken(ctx, req.RefreshToken, &token); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, authErrors.ErrInvalidRefreshToken
-		}
-		return nil, err
-	}
-
-	if time.Now().After(token.ExpiresAt) {
-		return nil, authErrors.ErrTokenExpired
-	}
-
-	userResponse, err := a.authRepo.GetUserById(ctx, token.UserId)
+	user, err := uc.authRepo.GetUserById(ctx, refreshToken.UserId)
 	if err != nil {
-		log.Error().Err(err).Str("user_id", token.UserId).Msg("User associated with refresh token not found")
+		log.Error().Err(err).Str("user_id", refreshToken.UserId).Msg("User associated with refresh token not found")
 		return nil, globalErrors.ErrUserNotFound
 	}
 
-	newAccessToken, err := helpers.GenerateToken(token.UserId, constants.Role(userResponse.Role))
-	if err != nil {
-		log.Error().Err(err).Str("user_id", token.UserId).Msg("Failed to generate new access token during refresh")
-		return nil, authErrors.ErrGenerateToken
+	if !user.IsActive {
+		log.Warn().Str("userId", user.Id).Msg("Refresh token request for inactive user")
+		return nil, globalErrors.ErrUserInactive
 	}
 
-	response := a.mapper.refreshTokeToResponse(&token)
-	response.AccessToken = newAccessToken
-	response.ExpiresAt = token.ExpiresAt.Format("2006-01-02 15:04:05")
+	newAccessToken, err := helpers.GenerateToken(refreshToken.UserId, constants.Role(user.Role))
+	if err != nil {
+		log.Error().Err(err).Str("user_id", refreshToken.UserId).Msg("Failed to generate new access token during refresh")
+		return nil, globalErrors.ErrInternalServer
+	}
 
-	log.Info().Str("user_id", token.UserId).Msg("Access token refreshed successfully")
+	response := uc.mapper.RefreshTokenToResponse(refreshToken)
+	response.AccessToken = newAccessToken
+	response.ExpiresAt = refreshToken.ExpiresAt.Format("2006-01-02 15:04:05")
+
+	log.Info().Str("user_id", refreshToken.UserId).Msg("Access token refreshed successfully")
 	return response, nil
 }
 
-func (a *authService) LogoutService(ctx context.Context, refreshToken string) error {
-	if err := a.authRepo.Logout(ctx, refreshToken); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			log.Info().Msg("Logout attempt for a non-existent or already revoked token")
-			return authErrors.ErrInvalidRefreshToken
-		}
-		log.Error().Err(err).Msg("Error during logout process")
-		return err
+func (uc *authUseCase) LogoutService(ctx context.Context, refreshToken string) error {
+	if refreshToken == "" {
+		log.Warn().Msg("Logout attempt with empty refresh token")
+		return authErrors.ErrInvalidRefreshToken
 	}
-	log.Info().Msg("User logged out successfully")
+
+	if err := uc.authRepo.RevokeRefreshToken(ctx, refreshToken); err != nil {
+		log.Warn().Str("token", refreshToken[:10]+"...").Msg("Failed to revoke refresh token during logout")
+		return authErrors.ErrInvalidRefreshToken
+	}
+
+	log.Info().Str("token", refreshToken[:10]+"...").Msg("User logged out successfully")
 	return nil
 }
 
-type authValidator struct{}
+func (uc *authUseCase) checkLoginRateLimit(ctx context.Context, identifier string) error {
+	redisKey := fmt.Sprintf("login_attempts:%s", identifier)
 
-func newAuthValidator() *authValidator {
-	return &authValidator{}
-}
-
-func (v *authValidator) validateRegisterRequest(req *dto.RegisterRequest) error {
-	if err := helpers.ValidateStruct(req); err != nil {
-		return err
+	failedAttempts, err := uc.redisClient.Get(ctx, redisKey).Int()
+	if err != nil && !errors.Is(err, redis.Nil) {
+		log.Error().Err(err).Str("identifier", identifier).Msg("Failed to get login attempts from Redis")
+		return globalErrors.ErrInternalServer
 	}
 
-	return helpers.IsValidPassword(req.Password)
-}
-
-func (v *authValidator) validateVerifyEmailRequest(req *dto.VerifyCodeRequest) error {
-	if req == nil {
-		return errors.New("request cannot be nil")
-	}
-
-	if err := helpers.ValidateStruct(req); err != nil {
-		return err
-	}
-
-	if req.Code == "" {
-		return errors.New("verification code cannot be empty")
+	if failedAttempts >= maxFailedAttempts {
+		log.Warn().Str("identifier", identifier).Int("attempts", failedAttempts).Msg("Login rate limit exceeded")
+		return authErrors.ErrTooManyLoginAttempts
 	}
 
 	return nil
 }
 
-func (v *authValidator) validateForgetPasswordRequest(req *dto.ForgetPasswordRequest) error {
-	if err := helpers.ValidateStruct(req); err != nil {
-		return err
+func (uc *authUseCase) incrementFailedAttempts(ctx context.Context, identifier string) {
+	redisKey := fmt.Sprintf("login_attempts:%s", identifier)
+
+	result := uc.redisClient.Incr(ctx, redisKey)
+	if result.Err() != nil {
+		log.Error().Err(result.Err()).Str("identifier", identifier).Msg("Failed to increment failed login attempts")
+		return
 	}
-	if strings.Contains(req.Email, "@") {
-		if !helpers.IsValidEmail(req.Email) {
-			return fmt.Errorf("invalid email format")
-		}
-	}
-	return nil
+
+	attempts := result.Val()
+	uc.redisClient.Expire(ctx, redisKey, lockoutDuration)
+
+	log.Warn().Str("identifier", identifier).Int64("attempts", attempts).Msg("Failed login attempt recorded")
 }
 
-func (v *authValidator) validateLoginRequest(req *dto.LoginRequest) error {
-	if err := helpers.ValidateStruct(req); err != nil {
-		return err
-	}
-	if strings.Contains(req.Identifier, "@") {
-		if !helpers.IsValidEmail(req.Identifier) {
-			return fmt.Errorf("invalid email format")
-		}
-	}
-	return nil
-}
+func (uc *authUseCase) clearFailedAttempts(ctx context.Context, identifier string) {
+	redisKey := fmt.Sprintf("login_attempts:%s", identifier)
 
-type authMapper struct{}
-
-func newAuthMapper() *authMapper {
-	return &authMapper{}
-}
-
-func (m *authMapper) createRequestToRegister(req *dto.RegisterRequest) (*models.User, *models.VerificationCode, error) {
-	hashedPassword, err := helpers.HashPassword(req.Password)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	userID := helpers.GenerateULID()
-
-	user := &models.User{
-		Id:        userID,
-		Username:  req.Username,
-		Email:     req.Email,
-		Password:  hashedPassword,
-		Role:      string(constants.RoleUser),
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	code, err := helpers.GenerateVerificationCode()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	expiresAt := time.Now().Add(15 * time.Minute)
-	verificationCode := &models.VerificationCode{
-		UserId:    user.Id,
-		Code:      code,
-		Status:    string(constants.VerificationCodeStatusPending),
-		ExpiresAt: expiresAt,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	if err := helpers.SendEmail(req.Email, req.Username, code, "verifikasi_email_registrasi", "Verifikasi Email Anda"); err != nil {
-		log.Error().Err(err).Str("email", req.Email).Msg("Failed to send verification email")
-		return user, verificationCode, err
-	}
-
-	return user, verificationCode, nil
-}
-
-func (m *authMapper) createRequestToForgetPassword(req *dto.ForgetPasswordRequest, authRepo repository.AuthRepository) (*models.VerificationCode, error) {
-
-	var user models.User
-	if err := authRepo.FindUserByUsernamAndEmail(context.Background(), req.Email, &user); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, globalErrors.ErrUserNotFound
-		}
-		return nil, fmt.Errorf("failed to retrieve user: %w", err)
-	}
-
-	code, err := helpers.GenerateVerificationCode()
-	if err != nil {
-		return nil, err
-	}
-
-	expiresAt := time.Now().Add(15 * time.Minute)
-	verificationCode := &models.VerificationCode{
-		UserId:    user.Id,
-		Code:      code,
-		Status:    string(constants.VerificationCodeStatusPending),
-		ExpiresAt: expiresAt,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}
-
-	if err := helpers.SendEmail(user.Email, user.Username, code, "forget_password_email", "Reset Password Anda"); err != nil {
-		log.Error().Err(err).Str("email", req.Email).Msg("Failed to send email")
-		return nil, err
-	}
-
-	return verificationCode, nil
-}
-
-func (m *authMapper) loginToResponse(user *models.User) *dto.LoginResponse {
-	return &dto.LoginResponse{
-		Id:        user.Id,
-		Username:  user.Username,
-		Email:     user.Email,
-		Role:      user.Role,
-		TokenType: "Bearer",
-		CreatedAt: user.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt: user.UpdatedAt.Format("2006-01-02 15:04:05"),
+	if err := uc.redisClient.Del(ctx, redisKey).Err(); err != nil {
+		log.Error().Err(err).Str("identifier", identifier).Msg("Failed to clear failed login attempts")
 	}
 }
 
-func (m *authMapper) refreshTokeToResponse(token *models.RefreshToken) *dto.RefreshTokenResponse {
-	return &dto.RefreshTokenResponse{
-		RefreshToken: token.Token,
-		TokenType:    "Bearer",
+func (uc *authUseCase) createAndSaveRefreshToken(ctx context.Context, userID string) (string, error) {
+	refreshToken := uc.mapper.CreateRefreshToken(userID)
+
+	// Save using repository
+	if err := uc.authRepo.SaveRefreshToken(ctx, refreshToken); err != nil {
+		log.Error().Err(err).Str("userId", userID).Msg("Failed to save refresh token")
+		return "", globalErrors.ErrInternalServer
 	}
+
+	return refreshToken.Token, nil
 }

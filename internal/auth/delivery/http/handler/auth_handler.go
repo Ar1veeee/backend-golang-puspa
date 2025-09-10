@@ -1,9 +1,9 @@
 package handler
 
 import (
-	authDto "backend-golang/internal/auth/dto"
+	authDto "backend-golang/internal/auth/delivery/http/dto"
 	authErrors "backend-golang/internal/auth/errors"
-	"backend-golang/internal/auth/service"
+	"backend-golang/internal/auth/usecase"
 	globalErrors "backend-golang/shared/errors"
 	"backend-golang/shared/helpers"
 	"backend-golang/shared/types"
@@ -15,10 +15,10 @@ import (
 )
 
 type AuthHandler struct {
-	authService service.AuthService
+	authService usecase.AuthUseCase
 }
 
-func NewAuthHandler(authService service.AuthService) *AuthHandler {
+func NewAuthHandler(authService usecase.AuthUseCase) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
 	}
@@ -66,6 +66,15 @@ func (h *AuthHandler) handleErrorResponse(c *gin.Context, err error) {
 	case errors.Is(err, authErrors.ErrInvalidCode):
 		statusCode = http.StatusBadRequest
 		message = "Invalid or expired verification code."
+	case errors.Is(err, authErrors.ErrGenerateToken):
+		statusCode = http.StatusInternalServerError
+		message = "Failed to generate authentication token."
+	case errors.Is(err, authErrors.ErrTooManyLoginAttempts):
+		statusCode = http.StatusTooManyRequests
+		message = "Too many login attempts. Please try again later."
+	case errors.Is(err, authErrors.ErrInvalidRefreshToken):
+		statusCode = http.StatusUnauthorized
+		message = "Invalid or expired refresh token."
 	default:
 		statusCode = http.StatusInternalServerError
 		message = "An unexpected error occurred."

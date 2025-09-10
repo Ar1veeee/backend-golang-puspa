@@ -1,7 +1,7 @@
 package routes
 
 import (
-	"backend-golang/internal/auth/handler"
+	"backend-golang/internal/auth/delivery/http/handler"
 	"backend-golang/shared/middlewares"
 	"backend-golang/shared/redis"
 	"time"
