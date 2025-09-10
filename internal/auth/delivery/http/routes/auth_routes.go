@@ -10,7 +10,7 @@ import (
 )
 
 func AuthRoutes(rg *gin.RouterGroup, authHandler *handler.AuthHandler) {
-	client, err := redis.InitRedis()
+	client, err := redis.GetRedisClient()
 	if err != nil {
 		panic(err)
 	}
@@ -19,6 +19,8 @@ func AuthRoutes(rg *gin.RouterGroup, authHandler *handler.AuthHandler) {
 	auth.Use(middlewares.RateLimiterIP(client, 1*time.Minute, 10))
 
 	auth.POST("/register", authHandler.Register)
+	auth.POST("/verify-email", authHandler.VerifyEmail)
+	auth.POST("/forget-password", authHandler.ForgetPassword)
 	auth.POST("/login", authHandler.Login)
 	auth.POST("/refresh", authHandler.RefreshToken)
 	auth.POST("/logout", authHandler.Logout)

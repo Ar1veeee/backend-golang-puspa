@@ -2,8 +2,8 @@ package handler
 
 import (
 	authDto "backend-golang/internal/auth/dto"
+	authErrors "backend-golang/internal/auth/errors"
 	"backend-golang/internal/auth/service"
-	userErrors "backend-golang/internal/user/errors"
 	globalErrors "backend-golang/shared/errors"
 	"backend-golang/shared/helpers"
 	"backend-golang/shared/types"
@@ -35,31 +35,46 @@ func (h *AuthHandler) handleErrorResponse(c *gin.Context, err error) {
 		return
 	}
 
-	statusCode := http.StatusInternalServerError
-	message := "An internal server errors occurred."
+	var statusCode int
+	var message string
 
 	switch {
-	case errors.Is(err, userErrors.ErrUserNotFound):
+	case errors.Is(err, globalErrors.ErrUserNotFound):
 		statusCode = http.StatusNotFound
 		message = "User not found."
-	case errors.Is(err, userErrors.ErrEmailExists):
+	case errors.Is(err, globalErrors.ErrEmailExists):
 		statusCode = http.StatusConflict
 		message = "A user with that email already exists."
-	case errors.Is(err, userErrors.ErrUsernameExists):
+	case errors.Is(err, globalErrors.ErrUsernameExists):
 		statusCode = http.StatusConflict
 		message = "A user with that username already exists."
-	case errors.Is(err, userErrors.ErrInvalidUserID), errors.Is(err, userErrors.ErrUserIDRequired):
+	case errors.Is(err, globalErrors.ErrInvalidUserID), errors.Is(err, globalErrors.ErrUserIDRequired):
 		statusCode = http.StatusBadRequest
 		message = "Invalid or missing user ID."
 	case errors.Is(err, globalErrors.ErrBadRequest), errors.Is(err, globalErrors.ErrInvalidInput):
 		statusCode = http.StatusBadRequest
 		message = "Bad request."
+	case errors.Is(err, globalErrors.ErrInvalidCredentials):
+		statusCode = http.StatusUnauthorized
+		message = "Invalid credentials."
+	case errors.Is(err, globalErrors.ErrUserInactive):
+		statusCode = http.StatusForbidden
+		message = "Account is not active. Please verify your email."
+	case errors.Is(err, globalErrors.ErrInternalServer):
+		statusCode = http.StatusInternalServerError
+		message = "An internal server error occurred."
+	case errors.Is(err, authErrors.ErrInvalidCode):
+		statusCode = http.StatusBadRequest
+		message = "Invalid or expired verification code."
+	default:
+		statusCode = http.StatusInternalServerError
+		message = "An unexpected error occurred."
 	}
 
 	c.JSON(statusCode, types.ErrorResponse{
 		Success: false,
 		Message: message,
-		Errors:  helpers.TranslateErrorMessage(err),
+		Errors:  map[string]string{"error": message},
 	})
 }
 
@@ -71,7 +86,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	err := h.authService.RegisterUser(c.Request.Context(), &req)
+	err := h.authService.RegisterService(c.Request.Context(), &req)
 	if err != nil {
 		h.handleErrorResponse(c, err)
 		return
@@ -84,16 +99,57 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	})
 }
 
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	req := authDto.VerifyCodeRequest{}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleErrorResponse(c, err)
+		return
+	}
+
+	err := h.authService.VerifyEmailService(c.Request.Context(), &req)
+	if err != nil {
+		h.handleErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, types.SuccessResponse{
+		Success: true,
+		Message: "Verify Email Successfully",
+		Data:    nil,
+	})
+}
+
+func (h *AuthHandler) ForgetPassword(c *gin.Context) {
+	req := authDto.ForgetPasswordRequest{}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		h.handleErrorResponse(c, err)
+		return
+	}
+
+	err := h.authService.ForgetPasswordService(c.Request.Context(), &req)
+	if err != nil {
+		h.handleErrorResponse(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, types.SuccessResponse{
+		Success: true,
+		Message: "Email Successfully Sent",
+		Data:    nil,
+	})
+}
+
 func (h *AuthHandler) Login(c *gin.Context) {
 	req := authDto.LoginRequest{}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		h.handleErrorResponse(c, err)
-
 		return
 	}
 
-	userLogin, err := h.authService.LoginUser(c.Request.Context(), &req)
+	userLogin, err := h.authService.LoginService(c.Request.Context(), &req)
 	if err != nil {
 		h.handleErrorResponse(c, err)
 		return
@@ -124,7 +180,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	var refreshToken, err = h.authService.RefreshTokenUser(c.Request.Context(), &req)
+	var refreshToken, err = h.authService.RefreshTokenService(c.Request.Context(), &req)
 	if err != nil {
 		h.handleErrorResponse(c, err)
 		return
@@ -140,11 +196,11 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 func (h *AuthHandler) Logout(c *gin.Context) {
 	refreshToken, err := c.Cookie("refresh_token")
 	if err != nil {
-		h.handleErrorResponse(c, err)
+		h.handleErrorResponse(c, globalErrors.ErrUnauthorized)
 		return
 	}
 
-	if err := h.authService.LogoutUser(c.Request.Context(), refreshToken); err != nil {
+	if err := h.authService.LogoutService(c.Request.Context(), refreshToken); err != nil {
 		h.handleErrorResponse(c, err)
 		return
 	}

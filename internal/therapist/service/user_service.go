@@ -88,7 +88,7 @@ func (u *userService) GetUserByID(ctx context.Context, id string) (*dto.UserResp
 	if id == "" {
 		return nil, userErrors.ErrUserIDRequired
 	}
-	if !helpers.IsValidUUID(id) {
+	if !helpers.IsValidULID(id) {
 		return nil, userErrors.ErrInvalidUserID
 	}
 
@@ -147,7 +147,7 @@ func (u *userService) DeleteUser(ctx context.Context, id string) error {
 		return userErrors.ErrUserIDRequired
 	}
 
-	if !helpers.IsValidUUID(id) {
+	if !helpers.IsValidULID(id) {
 		return userErrors.ErrInvalidUserID
 	}
 
@@ -204,7 +204,7 @@ func (m *userMapper) createRequestToUser(req *dto.UserCreateRequest) (*models.Us
 		return nil, err
 	}
 	return &models.User{
-		Name:      req.Name,
+		//Name:      req.Name,
 		Username:  req.Username,
 		Email:     req.Email,
 		Password:  hashedPassword,
@@ -215,9 +215,9 @@ func (m *userMapper) createRequestToUser(req *dto.UserCreateRequest) (*models.Us
 }
 
 func (m *userMapper) updateRequestToUser(user *models.User, req *dto.UserUpdateRequest) error {
-	if req.Name != "" {
-		user.Name = req.Name
-	}
+	//if req.Name != "" {
+	//	user.Name = req.Name
+	//}
 	if req.Username != "" {
 		user.Username = req.Username
 	}
@@ -241,8 +241,8 @@ func (m *userMapper) updateRequestToUser(user *models.User, req *dto.UserUpdateR
 
 func (m *userMapper) userToResponse(user *models.User) *dto.UserResponse {
 	return &dto.UserResponse{
-		Id:       user.Id,
-		Name:     user.Name,
+		Id: user.Id,
+		//Name:     user.Name,
 		Username: user.Username,
 		Email:    user.Email,
 		Role:     user.Role,

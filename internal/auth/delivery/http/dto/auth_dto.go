@@ -1,14 +1,20 @@
 package dto
 
 type RegisterRequest struct {
-	Name     string `json:"name" validate:"required,min=3,max=100"`
 	Username string `json:"username" validate:"required,min=3,max=50,alphanum"`
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=8"`
 }
+type VerifyCodeRequest struct {
+	Code string `json:"code" validate:"required,min=3,max=6,alphanum"`
+}
+
+type ForgetPasswordRequest struct {
+	Email    string `json:"email" validate:"required,email"`
+}
 
 type LoginRequest struct {
-	Username string `json:"username" validate:"required,min=3,max=50,alphanum"`
+	Identifier string `json:"identifier" validate:"required,min=3,max=50"`
 	Password string `json:"password" validate:"required"`
 }
 
@@ -18,11 +24,11 @@ type RefreshTokenRequest struct {
 
 type LoginResponse struct {
 	Id           string `json:"id"`
-	Name         string `json:"name"`
 	Username     string `json:"username"`
 	Email        string `json:"email"`
-	AccessToken  string `json:"accessToken"`
+	Role         string `json:"role"`
 	TokenType    string `json:"tokenType"`
+	AccessToken  string `json:"accessToken"`
 	RefreshToken string `json:"refreshToken"`
 	CreatedAt    string `json:"createdAt"`
 	UpdatedAt    string `json:"updatedAt"`
