@@ -1,11 +1,10 @@
 package helpers
 
 import (
-	globalErrors "backend-golang/shared/errors"
-	"regexp"
-
+	sharedErrors "backend-golang/shared/errors"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -27,38 +26,56 @@ func TranslateErrorMessage(err error) map[string]string {
 			field := strings.ToLower(fieldError.Field())
 			switch fieldError.Tag() {
 			case "required":
-				errorsMap[field] = fmt.Sprintf("%s is required", field)
+				errorsMap["error"] = fmt.Sprintf("%s diperlukan", field)
 			case "email":
-				errorsMap[field] = "Invalid email format"
+				errorsMap["error"] = "Format email tidak valid"
 			case "min":
-				errorsMap[field] = fmt.Sprintf("%s must be at least %s characters", field, fieldError.Param())
+				errorsMap["error"] = fmt.Sprintf("%s minimal memiliki %s karakter", field, fieldError.Param())
 			case "max":
-				errorsMap[field] = fmt.Sprintf("%s must be at most %s characters", field, fieldError.Param())
+				errorsMap["error"] = fmt.Sprintf("%s maksimal memiliki %s karakter", field, fieldError.Param())
 			case "alphanum":
-				errorsMap[field] = fmt.Sprintf("%s can only contain letters and numbers", field)
+				errorsMap["error"] = fmt.Sprintf("format %s tidak valid", field)
 			default:
-				errorsMap[field] = fmt.Sprintf("Invalid value for %s", field)
+				errorsMap["error"] = fmt.Sprintf("Invalid value for %s", field)
 			}
 		}
 	} else if err != nil {
 		errorsMap["errors"] = err.Error()
 
-		if strings.Contains(strings.ToLower(err.Error()), "Duplicate entry") {
+		if strings.Contains(strings.ToLower(err.Error()), "duplicate entry") {
 			if strings.Contains(err.Error(), "username") {
-				errorsMap["Username"] = globalErrors.ErrUsernameExists.Error()
+				errorsMap["error"] = "Username sudah digunakan"
 			}
 			if strings.Contains(err.Error(), "email") {
-				errorsMap["Email"] = globalErrors.ErrEmailExists.Error()
+				errorsMap["error"] = "Email sudah digunakan"
 			}
 		} else if errors.Is(err, gorm.ErrRecordNotFound) {
-			errorsMap["Error"] = "Record not found"
+			errorsMap["error"] = "Data tidak ditemukan"
 		}
 	}
 
 	return errorsMap
 }
 
-func IsValidEmail(email string) bool {
-	var emailRegex = regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
-	return emailRegex.MatchString(email)
+func IsValidPassword(password string) error {
+	if len(password) < 8 {
+		return sharedErrors.ErrPasswordTooShort
+	}
+
+	hasUpper := regexp.MustCompile(`[A-Z]`).MatchString(password)
+	if !hasUpper {
+		return sharedErrors.ErrPasswordUpper
+	}
+
+	hasNumber := regexp.MustCompile(`[0-9]`).MatchString(password)
+	if !hasNumber {
+		return sharedErrors.ErrPasswordNumber
+	}
+
+	hasSpecial := regexp.MustCompile(`[^a-zA-Z0-9]`).MatchString(password)
+	if !hasSpecial {
+		return sharedErrors.ErrPasswordSpecial
+	}
+
+	return nil
 }

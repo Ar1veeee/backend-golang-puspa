@@ -8,14 +8,16 @@ import (
 type AuthRepository interface {
 	CreateUser(ctx context.Context, user *entity.User) error
 	FindUserByEmail(ctx context.Context, email string) (*entity.User, error)
-	FindUserByUsernameAndEmail(ctx context.Context, identifier string) (*entity.User, error)
-	GetUserById(ctx context.Context, id string) (*entity.User, error)
+	FindUserByIdentifier(ctx context.Context, identifier string) (*entity.User, error)
+	FindUserById(ctx context.Context, id string) (*entity.User, error)
+	FindTokenByEmail(ctx context.Context, email string) (*entity.VerificationToken, error)
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 	ExistsByUsername(ctx context.Context, username string) (bool, error)
 	UpdateUserActiveStatus(ctx context.Context, userID string, isActive bool) error
+	ResetUserPassword(ctx context.Context, userId, newPassword string) error
 
-	SaveVerificationCode(ctx context.Context, code *entity.VerificationCode) error
-	VerifyEmailByCode(ctx context.Context, code string) (*entity.VerificationCode, error)
+	SaveVerificationToken(ctx context.Context, code *entity.VerificationToken) error
+	VerifyAccountByToken(ctx context.Context, code string) (*entity.VerificationToken, error)
 
 	SaveRefreshToken(ctx context.Context, token *entity.RefreshToken) error
 	FindRefreshToken(ctx context.Context, token string) (*entity.RefreshToken, error)

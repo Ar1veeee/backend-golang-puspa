@@ -5,17 +5,25 @@ type RegisterRequest struct {
 	Email    string `json:"email" validate:"required,email"`
 	Password string `json:"password" validate:"required,min=8"`
 }
-type VerifyCodeRequest struct {
-	Code string `json:"code" validate:"required,min=3,max=6,alphanum"`
+type ResendTokenRequest struct {
+	Email string `json:"email" validate:"required,email"`
+}
+type VerifyTokenRequest struct {
+	Token string `json:"token" validate:"required"`
+}
+type ResetPasswordRequest struct {
+	Token           string `json:"token" validate:"required"`
+	Password        string `json:"password" validate:"required,min=8"`
+	ConfirmPassword string `json:"confirm_password" validate:"required,min=8"`
 }
 
 type ForgetPasswordRequest struct {
-	Email    string `json:"email" validate:"required,email"`
+	Email string `json:"email" validate:"required,email"`
 }
 
 type LoginRequest struct {
 	Identifier string `json:"identifier" validate:"required,min=3,max=50"`
-	Password string `json:"password" validate:"required"`
+	Password   string `json:"password" validate:"required"`
 }
 
 type RefreshTokenRequest struct {

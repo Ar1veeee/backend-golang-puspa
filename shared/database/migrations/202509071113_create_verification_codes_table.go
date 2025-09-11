@@ -9,7 +9,7 @@ func MigrateCreateVerificationCodesTable(tx *gorm.DB) error {
         CREATE TABLE verification_codes (
 			id         INTEGER  PRIMARY KEY NOT NULL AUTO_INCREMENT,
 			user_id    CHAR(26)             NOT NULL,
-			code       VARCHAR(6)           NOT NULL,
+			code       TEXT           NOT NULL,
 			status 	   ENUM('Pending', 'Used', 'Revoked') DEFAULT 'Pending' NOT NULL ,
 			expires_at DATETIME             NOT NULL,
 			created_at TIMESTAMP                                    DEFAULT CURRENT_TIMESTAMP,

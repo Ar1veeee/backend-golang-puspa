@@ -5,6 +5,7 @@ import (
 	"backend-golang/internal/auth/entity"
 	"backend-golang/shared/constants"
 	"backend-golang/shared/helpers"
+	"fmt"
 	"time"
 
 	"github.com/rs/zerolog/log"
@@ -12,12 +13,14 @@ import (
 
 type AuthMapper interface {
 	RegisterRequestToUser(req *dto.RegisterRequest) (*entity.User, error)
-	CreateVerificationCode(userId string) *entity.VerificationCode
+	ResetPasswordRequestToUser(req *dto.ResetPasswordRequest) (*entity.User, error)
+	CreateVerificationCode(userId string) *entity.VerificationToken
 	CreateRefreshToken(userId string) *entity.RefreshToken
 	UserToLoginResponse(user *entity.User) *dto.LoginResponse
 	RefreshTokenToResponse(token *entity.RefreshToken) *dto.RefreshTokenResponse
-	CreateVerificationCodeWithEmail(userId, email, username string) (*entity.VerificationCode, error)
-	CreateForgerPasswordCode(userId, email, username string) (*entity.VerificationCode, error)
+	CreateVerificationAccountToken(userId, email, username string) (*entity.VerificationToken, error)
+	ResendEmailToken(userId string) (*entity.VerificationToken, error)
+	CreateForgetPasswordToken(userId, email, username string) (*entity.VerificationToken, error)
 }
 
 type authMapper struct{}
@@ -48,12 +51,26 @@ func (m *authMapper) RegisterRequestToUser(req *dto.RegisterRequest) (*entity.Us
 	return user, nil
 }
 
-func (m *authMapper) CreateVerificationCode(userId string) *entity.VerificationCode {
+func (m *authMapper) ResetPasswordRequestToUser(req *dto.ResetPasswordRequest) (*entity.User, error) {
+	hashedPassword, err := helpers.HashPassword(req.Password)
+	if err != nil {
+		return nil, err
+	}
+
+	user := &entity.User{
+		Password:  hashedPassword,
+		UpdatedAt: time.Now(),
+	}
+
+	return user, nil
+}
+
+func (m *authMapper) CreateVerificationCode(userId string) *entity.VerificationToken {
 	code, _ := helpers.GenerateVerificationCode()
 
-	return &entity.VerificationCode{
+	return &entity.VerificationToken{
 		UserId:    userId,
-		Code:      code,
+		Token:     code,
 		Status:    string(constants.VerificationCodeStatusPending),
 		ExpiresAt: time.Now().Add(15 * time.Minute),
 		CreatedAt: time.Now(),
@@ -94,22 +111,23 @@ func (m *authMapper) RefreshTokenToResponse(token *entity.RefreshToken) *dto.Ref
 	}
 }
 
-func (m *authMapper) CreateVerificationCodeWithEmail(userId, email, username string) (*entity.VerificationCode, error) {
-	code, err := helpers.GenerateVerificationCode()
+func (m *authMapper) CreateVerificationAccountToken(userId, email, username string) (*entity.VerificationToken, error) {
+	token, expiresAt, err := helpers.GenerateVerificationToken(userId)
 	if err != nil {
 		return nil, err
 	}
 
-	verificationCode := &entity.VerificationCode{
+	verificationCode := &entity.VerificationToken{
 		UserId:    userId,
-		Code:      code,
+		Token:     token,
 		Status:    string(constants.VerificationCodeStatusPending),
-		ExpiresAt: time.Now().Add(15 * time.Minute),
+		ExpiresAt: expiresAt,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
-	if err := helpers.SendEmail(email, username, code, "verification_email", "Verifikasi Email Anda"); err != nil {
+	verifyLink := fmt.Sprintf("http://localhost:3000/api/v1/auth/verify-account?token=%s", token)
+	if err := helpers.SendEmail(email, username, verifyLink, "verification_email", "Verifikasi Email Anda"); err != nil {
 		log.Error().Err(err).Str("email", email).Msg("Failed to send verification email")
 		return verificationCode, err
 	}
@@ -117,22 +135,41 @@ func (m *authMapper) CreateVerificationCodeWithEmail(userId, email, username str
 	return verificationCode, nil
 }
 
-func (m *authMapper) CreateForgerPasswordCode(userId, email, username string) (*entity.VerificationCode, error) {
-	code, err := helpers.GenerateVerificationCode()
+func (m *authMapper) ResendEmailToken(userId string) (*entity.VerificationToken, error) {
+	token, expiresAt, err := helpers.GenerateVerificationToken(userId)
 	if err != nil {
 		return nil, err
 	}
 
-	verificationCode := &entity.VerificationCode{
+	verificationToken := &entity.VerificationToken{
 		UserId:    userId,
-		Code:      code,
+		Token:     token,
 		Status:    string(constants.VerificationCodeStatusPending),
-		ExpiresAt: time.Now().Add(15 * time.Minute),
+		ExpiresAt: expiresAt,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
 
-	if err := helpers.SendEmail(email, username, code, "forget_password_email", "Reset Password Anda"); err != nil {
+	return verificationToken, nil
+}
+
+func (m *authMapper) CreateForgetPasswordToken(userId, email, username string) (*entity.VerificationToken, error) {
+	token, expiresAt, err := helpers.GenerateVerificationToken(userId)
+	if err != nil {
+		return nil, err
+	}
+
+	verificationCode := &entity.VerificationToken{
+		UserId:    userId,
+		Token:     token,
+		Status:    string(constants.VerificationCodeStatusPending),
+		ExpiresAt: expiresAt,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+
+	verifyLink := fmt.Sprintf("http://localhost:3000/api/v1/auth/update-password?token=%s", token)
+	if err := helpers.SendEmail(email, username, verifyLink, "forget_password_email", "Reset Password Anda"); err != nil {
 		log.Error().Err(err).Str("email", email).Msg("Failed to send forget password email")
 		return verificationCode, err
 	}

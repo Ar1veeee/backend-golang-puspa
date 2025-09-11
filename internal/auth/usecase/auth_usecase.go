@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"backend-golang/internal/auth/delivery/http/dto"
+	"backend-golang/internal/auth/entity"
 	authErrors "backend-golang/internal/auth/errors"
 	"backend-golang/internal/auth/repository"
 	"backend-golang/shared/constants"
@@ -24,8 +25,11 @@ const (
 
 type AuthUseCase interface {
 	RegisterService(ctx context.Context, req *dto.RegisterRequest) error
-	VerifyEmailService(ctx context.Context, req *dto.VerifyCodeRequest) error
+	ResendVerificationAccountService(ctx context.Context, req *dto.ResendTokenRequest) error
+	VerificationAccountService(ctx context.Context, req *dto.VerifyTokenRequest) error
 	ForgetPasswordService(ctx context.Context, req *dto.ForgetPasswordRequest) error
+	ResendForgetPasswordService(ctx context.Context, req *dto.ResendTokenRequest) error
+	ResetPasswordService(ctx context.Context, req *dto.ResetPasswordRequest) error
 	LoginService(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, error)
 	RefreshTokenService(ctx context.Context, req *dto.RefreshTokenRequest) (*dto.RefreshTokenResponse, error)
 	LogoutService(ctx context.Context, refreshToken string) error
@@ -83,7 +87,7 @@ func (uc *authUseCase) RegisterService(ctx context.Context, req *dto.RegisterReq
 	}
 	if parent == nil {
 		log.Warn().Str("email", req.Email).Msg("No parent found with temp_email")
-		return fmt.Errorf("no parent found with temp_email: %s", req.Email)
+		return authErrors.ErrEmailNotRegistered
 	}
 
 	user, err := uc.mapper.RegisterRequestToUser(req)
@@ -97,13 +101,13 @@ func (uc *authUseCase) RegisterService(ctx context.Context, req *dto.RegisterReq
 		return globalErrors.ErrInternalServer
 	}
 
-	verificationCode, err := uc.mapper.CreateVerificationCodeWithEmail(user.Id, user.Email, user.Username)
+	verificationCode, err := uc.mapper.CreateVerificationAccountToken(user.Id, user.Email, user.Username)
 	if err != nil {
 		log.Error().Err(err).Str("userId", user.Id).Msg("Failed to create verification code")
 	}
 
 	if verificationCode != nil {
-		if err := uc.authRepo.SaveVerificationCode(ctx, verificationCode); err != nil {
+		if err := uc.authRepo.SaveVerificationToken(ctx, verificationCode); err != nil {
 			log.Error().Err(err).Str("userId", user.Id).Msg("Failed to save verification code")
 			return globalErrors.ErrInternalServer
 		}
@@ -119,29 +123,92 @@ func (uc *authUseCase) RegisterService(ctx context.Context, req *dto.RegisterReq
 	return nil
 }
 
-func (uc *authUseCase) VerifyEmailService(ctx context.Context, req *dto.VerifyCodeRequest) error {
-	if err := uc.validator.ValidateVerifyCodeRequest(req); err != nil {
-		log.Warn().Err(err).Str("code", req.Code).Msg("Verify code validation failed")
+func (uc *authUseCase) ResendVerificationAccountService(ctx context.Context, req *dto.ResendTokenRequest) error {
+	if err := uc.validator.ValidateResendEmailRequest(req); err != nil {
+		log.Warn().Err(err).Str("email", req.Email).Msg("Registration validation failed")
 		return err
 	}
 
-	verificationCode, err := uc.authRepo.VerifyEmailByCode(ctx, req.Code)
+	user, err := uc.authRepo.FindUserByEmail(ctx, req.Email)
 	if err != nil {
-		log.Warn().Err(err).Str("code", req.Code).Msg("Invalid verification code")
-		return authErrors.ErrInvalidCode
+		log.Error().Err(err).Str("email", req.Email).Msg("Failed to find user by email")
+		return globalErrors.ErrEmailNotFound
 	}
 
-	if verificationCode.IsExpired() {
-		log.Warn().Str("code", req.Code).Str("userId", verificationCode.UserId).Msg("Verification code expired")
+	if user.IsActive {
+		log.Warn().Str("email", req.Email).Msg("User is already active")
+		return authErrors.ErrEmailAlreadyVerified
 	}
 
-	if err := uc.authRepo.UpdateUserActiveStatus(ctx, verificationCode.UserId, true); err != nil {
-		log.Error().Err(err).Str("userId", verificationCode.UserId).Msg("Failed to activate user")
+	existingToken, err := uc.authRepo.FindTokenByEmail(ctx, req.Email)
+	if err != nil {
+		log.Error().Err(err).Str("email", req.Email).Msg("Failed to check existing token")
+		return globalErrors.ErrInternalServer
+	}
+
+	var verificationToken *entity.VerificationToken
+	var verifyLink string
+
+	if existingToken != nil && !existingToken.IsExpired() {
+		verificationToken = existingToken
+		verifyLink = fmt.Sprintf("http://localhost:3000/api/v1/auth/verify-account?token=%s", existingToken.Token)
+		log.Info().Str("userId", user.Id).Str("email", req.Email).Msg("Reusing existing valid token")
+	} else {
+		verificationToken, err = uc.mapper.ResendEmailToken(user.Id)
+		if err != nil {
+			log.Error().Err(err).Str("userId", user.Id).Msg("Failed to create new verification token")
+			return globalErrors.ErrInternalServer
+		}
+
+		if err := uc.authRepo.SaveVerificationToken(ctx, verificationToken); err != nil {
+			log.Error().Err(err).Str("userId", user.Id).Msg("Failed to save new verification token")
+			return globalErrors.ErrInternalServer
+		}
+
+		verifyLink = fmt.Sprintf("http://localhost:3000/api/v1/auth/verify-account?token=%s", verificationToken.Token)
+		log.Info().Str("userId", user.Id).Str("email", req.Email).Msg("Created and saved new verification token")
+	}
+
+	if err := helpers.SendEmail(user.Email, user.Username, verifyLink, "verification_email", "Verifikasi Email Anda"); err != nil {
+		log.Error().Err(err).Str("email", user.Email).Msg("Failed to send verification email")
+		return globalErrors.ErrInternalServer
+	}
+
+	log.Info().Str("userId", user.Id).Str("email", req.Email).Msg("Verification email resent successfully")
+	return nil
+}
+
+func (uc *authUseCase) VerificationAccountService(ctx context.Context, req *dto.VerifyTokenRequest) error {
+	if err := uc.validator.VerificationAccountRequest(req); err != nil {
+		log.Warn().Err(err).Str("token", req.Token).Msg("Verification account failed")
+		return err
+	}
+
+	token := req.Token
+
+	if token == "" {
+		log.Warn().Msg("Verification token is empty")
+		return globalErrors.ErrInvalidToken
+	}
+
+	verificationToken, err := uc.authRepo.VerifyAccountByToken(ctx, req.Token)
+	if err != nil {
+		log.Warn().Err(err).Str("code", req.Token).Msg("Invalid verification code")
+		return globalErrors.ErrInvalidToken
+	}
+
+	if verificationToken.IsExpired() {
+		log.Warn().Str("code", req.Token).Str("userId", verificationToken.UserId).Msg("Verification code expired")
+		return authErrors.ErrTokenExpired
+	}
+
+	if err := uc.authRepo.UpdateUserActiveStatus(ctx, verificationToken.UserId, true); err != nil {
+		log.Error().Err(err).Str("userId", verificationToken.UserId).Msg("Failed to activate user")
 		return globalErrors.ErrInternalServer
 	}
 
 	log.Info().
-		Str("userId", verificationCode.UserId).
+		Str("userId", verificationToken.UserId).
 		Msg("Email verified successfully")
 
 	return nil
@@ -155,21 +222,122 @@ func (uc *authUseCase) ForgetPasswordService(ctx context.Context, req *dto.Forge
 	user, err := uc.authRepo.FindUserByEmail(ctx, req.Email)
 	if err != nil {
 		log.Warn().Err(err).Str("email", req.Email).Msg("Reset password attempt failed: email not found")
-		return nil
+		return authErrors.ErrEmailNotFound
 	}
 
-	verificationCode, err := uc.mapper.CreateForgerPasswordCode(user.Id, user.Email, user.Username)
+	verificationCode, err := uc.mapper.CreateForgetPasswordToken(user.Id, user.Email, user.Username)
 	if err != nil {
 		log.Warn().Err(err).Str("userId", user.Id).Msg("Failed to create forget password code")
 		return globalErrors.ErrInternalServer
 	}
 
-	if err := uc.authRepo.SaveVerificationCode(ctx, verificationCode); err != nil {
+	if err := uc.authRepo.SaveVerificationToken(ctx, verificationCode); err != nil {
 		log.Error().Err(err).Str("userId", user.Id).Msg("Failed to save verification code")
 		return globalErrors.ErrInternalServer
 	}
 
 	log.Info().Str("userId", user.Id).Str("email", req.Email).Msg("Forget password code sent")
+	return nil
+}
+
+func (uc *authUseCase) ResendForgetPasswordService(ctx context.Context, req *dto.ResendTokenRequest) error {
+	if err := uc.validator.ValidateResendEmailRequest(req); err != nil {
+		log.Warn().Err(err).Str("email", req.Email).Msg("Registration validation failed")
+		return err
+	}
+
+	user, err := uc.authRepo.FindUserByEmail(ctx, req.Email)
+	if err != nil {
+		log.Error().Err(err).Str("email", req.Email).Msg("Failed to find user by email")
+		return globalErrors.ErrEmailNotFound
+	}
+
+	if user.IsActive {
+		log.Warn().Str("email", req.Email).Msg("User is already active")
+		return authErrors.ErrEmailAlreadyVerified
+	}
+
+	existingToken, err := uc.authRepo.FindTokenByEmail(ctx, req.Email)
+	if err != nil {
+		log.Error().Err(err).Str("email", req.Email).Msg("Failed to check existing token")
+		return globalErrors.ErrInternalServer
+	}
+
+	var verificationToken *entity.VerificationToken
+	var verifyLink string
+
+	if existingToken != nil && !existingToken.IsExpired() {
+		verificationToken = existingToken
+		verifyLink = fmt.Sprintf("http://localhost:3000/api/v1/auth/update-password?token=%s", existingToken.Token)
+		log.Info().Str("userId", user.Id).Str("email", req.Email).Msg("Reusing existing valid token")
+	} else {
+		verificationToken, err = uc.mapper.ResendEmailToken(user.Id)
+		if err != nil {
+			log.Error().Err(err).Str("userId", user.Id).Msg("Failed to create new verification token")
+			return globalErrors.ErrInternalServer
+		}
+
+		if err := uc.authRepo.SaveVerificationToken(ctx, verificationToken); err != nil {
+			log.Error().Err(err).Str("userId", user.Id).Msg("Failed to save new verification token")
+			return globalErrors.ErrInternalServer
+		}
+
+		verifyLink = fmt.Sprintf("http://localhost:3000/api/v1/auth/update-password?token=%s", verificationToken.Token)
+		log.Info().Str("userId", user.Id).Str("email", req.Email).Msg("Created and saved new verification token")
+	}
+
+	if err := helpers.SendEmail(user.Email, user.Username, verifyLink, "forget_password_email", "Reset Password Anda"); err != nil {
+		log.Error().Err(err).Str("email", user.Email).Msg("Failed to send verification email")
+		return globalErrors.ErrInternalServer
+	}
+
+	log.Info().Str("userId", user.Id).Str("email", req.Email).Msg("Verification email resent successfully")
+	return nil
+}
+
+func (uc *authUseCase) ResetPasswordService(ctx context.Context, req *dto.ResetPasswordRequest) error {
+	if err := uc.validator.ValidateResetPasswordRequest(req); err != nil {
+		log.Warn().Err(err).Msg("Reset password validation failed")
+		return err
+	}
+
+	token := req.Token
+
+	if token == "" {
+		log.Warn().Msg("Verification token is empty")
+		return globalErrors.ErrInvalidToken
+	}
+
+	verificationToken, err := uc.authRepo.VerifyAccountByToken(ctx, req.Token)
+	if err != nil {
+		log.Warn().Err(err).Str("code", req.Token).Msg("Invalid verification code")
+		return globalErrors.ErrInvalidToken
+	}
+
+	if verificationToken.IsExpired() {
+		log.Warn().Str("code", req.Token).Str("userId", verificationToken.UserId).Msg("Verification code expired")
+		return authErrors.ErrTokenExpired
+	}
+
+	user, err := uc.mapper.ResetPasswordRequestToUser(req)
+	if err != nil {
+		log.Warn().Err(err).Str("userId", user.Id).Msg("Failed to create forget password code")
+		return globalErrors.ErrInternalServer
+	}
+
+	if req.Password != req.ConfirmPassword {
+		return globalErrors.ErrPasswordNotSame
+	}
+
+	if err := uc.authRepo.ResetUserPassword(ctx, verificationToken.UserId, user.Password); err != nil {
+		log.Error().Err(err).Str("userId", verificationToken.UserId).Msg("Failed to update password")
+		return globalErrors.ErrInternalServer
+	}
+
+	log.Info().
+		Str("userId", verificationToken.UserId).
+		Msg("Update password successfully")
+
 	return nil
 }
 
@@ -181,27 +349,25 @@ func (uc *authUseCase) LoginService(ctx context.Context, req *dto.LoginRequest) 
 
 	if err := uc.checkLoginRateLimit(ctx, req.Identifier); err != nil {
 		log.Warn().Err(err).Str("identifier", req.Identifier).Msg("Login blocked due to rate limiting")
-		return nil, err
+		return nil, authErrors.ErrTooManyLoginAttempts
 	}
 
-	user, err := uc.authRepo.FindUserByUsernameAndEmail(ctx, req.Identifier)
+	user, err := uc.authRepo.FindUserByIdentifier(ctx, req.Identifier)
 	if err != nil {
 		uc.incrementFailedAttempts(ctx, req.Identifier)
 		log.Warn().Str("identifier", req.Identifier).Msg("Login attempt failed: user not found")
-		return nil, globalErrors.ErrInvalidCredentials
+		return nil, authErrors.ErrInvalidCredentials
 	}
 
 	if !user.IsActive {
-		log.Warn().
-			Str("identifier", req.Identifier).
-			Msg("Login attempt failed: account is not active")
-		return nil, globalErrors.ErrUserInactive
+		log.Warn().Str("identifier", req.Identifier).Str("userId", user.Id).Msg("Login failed: user inactive")
+		return nil, authErrors.ErrUserInactive
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
 		uc.incrementFailedAttempts(ctx, req.Identifier)
 		log.Warn().Str("username", req.Identifier).Str("userId", user.Id).Msg("Login attempt failed: invalid password")
-		return nil, globalErrors.ErrInvalidCredentials
+		return nil, authErrors.ErrInvalidCredentials
 	}
 
 	uc.clearFailedAttempts(ctx, req.Identifier)
@@ -246,7 +412,7 @@ func (uc *authUseCase) RefreshTokenService(ctx context.Context, req *dto.Refresh
 		return nil, authErrors.ErrInvalidRefreshToken
 	}
 
-	user, err := uc.authRepo.GetUserById(ctx, refreshToken.UserId)
+	user, err := uc.authRepo.FindUserById(ctx, refreshToken.UserId)
 	if err != nil {
 		log.Error().Err(err).Str("user_id", refreshToken.UserId).Msg("User associated with refresh token not found")
 		return nil, globalErrors.ErrUserNotFound
@@ -254,7 +420,7 @@ func (uc *authUseCase) RefreshTokenService(ctx context.Context, req *dto.Refresh
 
 	if !user.IsActive {
 		log.Warn().Str("userId", user.Id).Msg("Refresh token request for inactive user")
-		return nil, globalErrors.ErrUserInactive
+		return nil, authErrors.ErrUserInactive
 	}
 
 	newAccessToken, err := helpers.GenerateToken(refreshToken.UserId, constants.Role(user.Role))

@@ -13,10 +13,10 @@ import (
 type EmailData struct {
 	Email    string
 	Username string
-	Code     string
+	Link     string
 }
 
-func SendEmail(toEmail, username, code, templateName, subject string) error {
+func SendEmail(toEmail, username, verifyLink, templateName, subject string) error {
 	client := GetMailjetClient()
 	sender := GetEmailSender()
 
@@ -29,7 +29,7 @@ func SendEmail(toEmail, username, code, templateName, subject string) error {
 	data := EmailData{
 		Email:    toEmail,
 		Username: username,
-		Code:     code,
+		Link:     verifyLink,
 	}
 	if err := tmpl.Execute(&body, data); err != nil {
 		return fmt.Errorf("failed to render email template: %w", err)
@@ -39,7 +39,7 @@ func SendEmail(toEmail, username, code, templateName, subject string) error {
 		{
 			From: &mailjet.RecipientV31{
 				Email: sender,
-				Name:  "Puspa HIC",
+				Name:  "no-reply",
 			},
 			To: &mailjet.RecipientsV31{
 				{Email: toEmail},

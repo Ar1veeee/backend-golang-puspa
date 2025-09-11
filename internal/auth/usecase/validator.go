@@ -2,15 +2,16 @@ package usecase
 
 import (
 	"backend-golang/internal/auth/delivery/http/dto"
+	globalErrors "backend-golang/shared/errors"
 	"backend-golang/shared/helpers"
 	"errors"
-	"fmt"
-	"strings"
 )
 
 type AuthValidator interface {
 	ValidateRegisterRequest(req *dto.RegisterRequest) error
-	ValidateVerifyCodeRequest(req *dto.VerifyCodeRequest) error
+	ValidateResendEmailRequest(req *dto.ResendTokenRequest) error
+	ValidateResetPasswordRequest(req *dto.ResetPasswordRequest) error
+	VerificationAccountRequest(req *dto.VerifyTokenRequest) error
 	ValidateForgetPasswordRequest(req *dto.ForgetPasswordRequest) error
 	ValidateLoginRequest(req *dto.LoginRequest) error
 }
@@ -22,10 +23,6 @@ func NewAuthValidator() AuthValidator {
 }
 
 func (v *authValidator) ValidateRegisterRequest(req *dto.RegisterRequest) error {
-	if req == nil {
-		return errors.New("request cannot be nil")
-	}
-
 	if err := helpers.ValidateStruct(req); err != nil {
 		return err
 	}
@@ -33,53 +30,53 @@ func (v *authValidator) ValidateRegisterRequest(req *dto.RegisterRequest) error 
 	return helpers.IsValidPassword(req.Password)
 }
 
-func (v *authValidator) ValidateVerifyCodeRequest(req *dto.VerifyCodeRequest) error {
-	if req == nil {
-		return errors.New("request cannot be nil")
-	}
-
+func (v *authValidator) ValidateResendEmailRequest(req *dto.ResendTokenRequest) error {
 	if err := helpers.ValidateStruct(req); err != nil {
 		return err
 	}
 
-	if req.Code == "" {
+	return nil
+}
+
+func (v *authValidator) VerificationAccountRequest(req *dto.VerifyTokenRequest) error {
+	if err := helpers.ValidateStruct(req); err != nil {
+		return err
+	}
+
+	if req.Token == "" {
 		return errors.New("verification code cannot be empty")
 	}
 
 	return nil
 }
 
-func (v *authValidator) ValidateForgetPasswordRequest(req *dto.ForgetPasswordRequest) error {
-	if req == nil {
-		return errors.New("request cannot be nil")
-	}
-
+func (v *authValidator) ValidateResetPasswordRequest(req *dto.ResetPasswordRequest) error {
 	if err := helpers.ValidateStruct(req); err != nil {
 		return err
 	}
 
-	if strings.Contains(req.Email, "@") {
-		if !helpers.IsValidEmail(req.Email) {
-			return fmt.Errorf("invalid email format")
-		}
+	if req.Token == "" {
+		return globalErrors.ErrInvalidToken
+	}
+
+	if req.Password != req.ConfirmPassword {
+		return globalErrors.ErrPasswordNotSame
+	}
+
+	return helpers.IsValidPassword(req.Password)
+}
+
+func (v *authValidator) ValidateForgetPasswordRequest(req *dto.ForgetPasswordRequest) error {
+	if err := helpers.ValidateStruct(req); err != nil {
+		return err
 	}
 
 	return nil
 }
 
 func (v *authValidator) ValidateLoginRequest(req *dto.LoginRequest) error {
-	if req == nil {
-		return errors.New("request cannot be nil")
-	}
-
 	if err := helpers.ValidateStruct(req); err != nil {
 		return err
-	}
-
-	if strings.Contains(req.Identifier, "@") {
-		if !helpers.IsValidEmail(req.Identifier) {
-			return fmt.Errorf("invalid email format")
-		}
 	}
 
 	return nil

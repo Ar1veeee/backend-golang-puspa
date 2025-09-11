@@ -29,17 +29,17 @@ func (u *User) Validate() error {
 	return nil
 }
 
-type VerificationCode struct {
+type VerificationToken struct {
 	Id        int
 	UserId    string
-	Code      string
+	Token     string
 	Status    string
 	ExpiresAt time.Time
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
 
-func (vc *VerificationCode) IsExpired() bool {
+func (vc *VerificationToken) IsExpired() bool {
 	return time.Now().After(vc.ExpiresAt)
 }
 

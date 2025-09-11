@@ -3,6 +3,7 @@ package gorm
 import (
 	"backend-golang/internal/auth/entity"
 	"backend-golang/internal/auth/repository"
+	"backend-golang/shared/helpers"
 	"backend-golang/shared/models"
 	"context"
 	"errors"
@@ -59,14 +60,14 @@ func (r *authRepository) FindUserByEmail(ctx context.Context, email string) (*en
 	return r.modelToUserEntity(&dbUser), nil
 }
 
-func (r *authRepository) FindUserByUsernameAndEmail(ctx context.Context, identifier string) (*entity.User, error) {
+func (r *authRepository) FindUserByIdentifier(ctx context.Context, identifier string) (*entity.User, error) {
 	if identifier == "" {
 		return nil, errors.New("identifier cannot be empty")
 	}
 
 	var dbUser models.User
 	if err := r.db.WithContext(ctx).
-		Where("username = ? OR email = ? AND is_active = ?", identifier, identifier, true).
+		Where("username = ? OR email = ?", identifier, identifier).
 		First(&dbUser).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user with this username or email not found")
@@ -77,7 +78,7 @@ func (r *authRepository) FindUserByUsernameAndEmail(ctx context.Context, identif
 	return r.modelToUserEntity(&dbUser), nil
 }
 
-func (r *authRepository) GetUserById(ctx context.Context, id string) (*entity.User, error) {
+func (r *authRepository) FindUserById(ctx context.Context, id string) (*entity.User, error) {
 	if id == "" {
 		return nil, errors.New("id cannot be empty")
 	}
@@ -91,6 +92,37 @@ func (r *authRepository) GetUserById(ctx context.Context, id string) (*entity.Us
 	}
 
 	return r.modelToUserEntity(&dbUser), nil
+}
+
+func (r *authRepository) FindTokenByEmail(ctx context.Context, email string) (*entity.VerificationToken, error) {
+	if email == "" {
+		return nil, errors.New("email cannot be empty")
+	}
+
+	var dbUser models.User
+	if err := r.db.WithContext(ctx).Where("email = ?", email).First(&dbUser).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("user with this email not found")
+		}
+		return nil, errors.New("failed to find user by email")
+	}
+
+	var dbToken models.VerificationCode
+	if err := r.db.WithContext(ctx).
+		Where("user_id = ? AND status = ?", dbUser.Id, "pending").
+		Order("created_at DESC").
+		First(&dbToken).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, errors.New("failed to find user by email")
+	}
+
+	if dbToken.ExpiresAt.Before(time.Now()) {
+		return nil, nil
+	}
+
+	return r.modelToVerificationCodeEntity(&dbToken), nil
 }
 
 func (r *authRepository) ExistsByEmail(ctx context.Context, email string) (bool, error) {
@@ -145,15 +177,38 @@ func (r *authRepository) UpdateUserActiveStatus(ctx context.Context, userId stri
 	return nil
 }
 
-func (r *authRepository) SaveVerificationCode(ctx context.Context, code *entity.VerificationCode) error {
+func (r *authRepository) ResetUserPassword(ctx context.Context, userId, password string) error {
+	if userId == "" {
+		return errors.New("user id cannot be empty")
+	}
+
+	result := r.db.WithContext(ctx).Model(&models.User{}).
+		Where("id = ?", userId).
+		Updates(map[string]interface{}{
+			"password":   password,
+			"updated_at": time.Now(),
+		})
+
+	if result.Error != nil {
+		return errors.New("failed to reset password")
+	}
+
+	if result.RowsAffected == 0 {
+		return errors.New("user not found")
+	}
+
+	return nil
+}
+
+func (r *authRepository) SaveVerificationToken(ctx context.Context, code *entity.VerificationToken) error {
 	if code == nil {
-		return errors.New("verification code cannot be nil")
+		return errors.New("verification token cannot be nil")
 	}
 
 	dbCode := &models.VerificationCode{
 		Id:        code.Id,
 		UserId:    code.UserId,
-		Code:      code.Code,
+		Code:      code.Token,
 		Status:    code.Status,
 		ExpiresAt: code.ExpiresAt,
 		CreatedAt: code.CreatedAt,
@@ -167,7 +222,7 @@ func (r *authRepository) SaveVerificationCode(ctx context.Context, code *entity.
 	return nil
 }
 
-func (r *authRepository) VerifyEmailByCode(ctx context.Context, code string) (*entity.VerificationCode, error) {
+func (r *authRepository) VerifyAccountByToken(ctx context.Context, code string) (*entity.VerificationToken, error) {
 	if code == "" {
 		return nil, errors.New("code cannot be empty")
 	}
@@ -177,14 +232,20 @@ func (r *authRepository) VerifyEmailByCode(ctx context.Context, code string) (*e
 		Where("code = ? AND status = ?", code, "pending").
 		First(&dbCode).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("verification code not found")
+			return nil, errors.New("verification token not found")
 		}
-		return nil, errors.New("failed to find verification code")
+		return nil, errors.New("failed to find verification token")
 	}
 
-	if time.Now().After(dbCode.ExpiresAt) {
+	claims, err := helpers.VerifyVerificationToken(code)
+	if err != nil {
 		r.db.WithContext(ctx).Model(&dbCode).Update("status", "revoked")
-		return nil, errors.New("verification code has expired")
+		return nil, errors.New("invalid or expired verification token")
+	}
+
+	if claims.Subject != dbCode.UserId {
+		r.db.WithContext(ctx).Model(&dbCode).Update("status", "revoked")
+		return nil, errors.New("token user mismatch")
 	}
 
 	tx := r.db.WithContext(ctx).Begin()
@@ -317,11 +378,11 @@ func (r *authRepository) modelToUserEntity(dbUser *models.User) *entity.User {
 	}
 }
 
-func (r *authRepository) modelToVerificationCodeEntity(dbCode *models.VerificationCode) *entity.VerificationCode {
-	return &entity.VerificationCode{
+func (r *authRepository) modelToVerificationCodeEntity(dbCode *models.VerificationCode) *entity.VerificationToken {
+	return &entity.VerificationToken{
 		Id:        dbCode.Id,
 		UserId:    dbCode.UserId,
-		Code:      dbCode.Code,
+		Token:     dbCode.Code,
 		Status:    dbCode.Status,
 		ExpiresAt: dbCode.ExpiresAt,
 		CreatedAt: dbCode.CreatedAt,
