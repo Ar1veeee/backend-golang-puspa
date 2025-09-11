@@ -1,7 +1,9 @@
 package errors
 
-import "errors"
+import (
+	sharedErrors "backend-golang/shared/errors"
+)
 
 var (
-	ErrRegistrationFailed = errors.New("failed to create registration")
+	ErrRegistrationFailed = sharedErrors.InternalServer("registration_failed", "failed to create registration")
 )

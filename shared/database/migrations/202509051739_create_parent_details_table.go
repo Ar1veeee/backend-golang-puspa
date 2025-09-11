@@ -14,7 +14,9 @@ func MigrateCreateParentDetailsTable(tx *gorm.DB) error {
 			parent_phone      			VARBINARY(100)       					NOT NULL,
 			parent_age 		  			INTEGER 							    NULL,
 			parent_occupation 			VARCHAR(100)                          	NULL,
-			relationship_with_child		VARCHAR(100) 							NULL, 
+			relationship_with_child		VARCHAR(100) 							NULL,
+			created_at TIMESTAMP                                    DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP                                    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			CONSTRAINT fk_parent_details_parent FOREIGN KEY (parent_id) REFERENCES parents (id) ON DELETE CASCADE,
 			INDEX             idx_parent_details_parent_id (parent_id),
 			INDEX             idx_parent_details_parent_type (parent_type)

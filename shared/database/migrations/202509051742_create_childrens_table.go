@@ -19,6 +19,8 @@ func MigrateCreateChildrensTable(tx *gorm.DB) error {
 			child_school            VARCHAR(100) 			 NULL,
 			child_service_choice    VARCHAR(250)         NOT NULL,
 			child_religion    		ENUM('Islam','Kristen','Katolik','Hindu','Budha','Konghucu','Lainnya') NULL ,
+			created_at TIMESTAMP                                    DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP                                    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 			CONSTRAINT fk_children_parent FOREIGN KEY (parent_id) REFERENCES parents (id) ON DELETE CASCADE,
 			INDEX idx_children_parent_id (parent_id)
 		);
