@@ -3,13 +3,19 @@ package main
 import (
 	authHandler "backend-golang/internal/auth/delivery/http/handler"
 	authRepo "backend-golang/internal/auth/repository/gorm"
-	authService "backend-golang/internal/auth/usecase"
+	authUseCase "backend-golang/internal/auth/usecase"
+
 	registrationHandler "backend-golang/internal/registration/delivery/http/handler"
 	registrationRepo "backend-golang/internal/registration/repository/gorm"
-	registrationService "backend-golang/internal/registration/usecase"
+	registrationUseCase "backend-golang/internal/registration/usecase"
+
 	therapistHandler "backend-golang/internal/therapist/delivery/http/handler"
-	therapistRepo "backend-golang/internal/therapist/repository"
-	therapistService "backend-golang/internal/therapist/service"
+	therapistRepo "backend-golang/internal/therapist/repository/gorm"
+	therapistUseCase "backend-golang/internal/therapist/usecase"
+
+	observationHandler "backend-golang/internal/observation/delivery/http/handler"
+	observationRepo "backend-golang/internal/observation/repository/gorm"
+	observationUseCase "backend-golang/internal/observation/usecase"
 	"backend-golang/shared/config"
 	"backend-golang/shared/database"
 	"backend-golang/shared/database/migrations"
@@ -56,16 +62,19 @@ func main() {
 	registrationRepository := registrationRepo.NewRegistrationRepository(db)
 	authRepository := authRepo.NewAuthRepository(db)
 	therapistRepository := therapistRepo.NewTherapistRepository(db)
+	observationRepository := observationRepo.NewObservationRepository(db)
 
-	registrationServices := registrationService.NewRegistrationService(registrationRepository)
-	authServices := authService.NewAuthUseCase(authRepository, redisClient)
-	therapistServices := therapistService.NewTherapistService(therapistRepository)
+	registrationUseCases := registrationUseCase.NewRegistrationUseCase(registrationRepository)
+	authUseCases := authUseCase.NewAuthUseCase(authRepository, redisClient)
+	therapistUseCases := therapistUseCase.NewTherapistUseCase(therapistRepository)
+	observationUseCases := observationUseCase.NewObservationUseCase(observationRepository)
 
-	registrationHandlers := registrationHandler.NewRegistrationHandler(registrationServices)
-	authHandlers := authHandler.NewAuthHandler(authServices)
-	therapistHandlers := therapistHandler.NewTherapistHandler(therapistServices)
+	registrationHandlers := registrationHandler.NewRegistrationHandler(registrationUseCases)
+	authHandlers := authHandler.NewAuthHandler(authUseCases)
+	therapistHandlers := therapistHandler.NewTherapistHandler(therapistUseCases)
+	observationHandlers := observationHandler.NewObservationHandler(observationUseCases)
 
-	router := routes.SetupRouter(registrationHandlers, authHandlers, therapistHandlers)
+	router := routes.SetupRouter(registrationHandlers, authHandlers, therapistHandlers, observationHandlers)
 
 	port := config.GetEnv("APP_PORT", "3000")
 	server := &http.Server{
