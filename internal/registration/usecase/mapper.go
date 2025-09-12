@@ -13,7 +13,7 @@ import (
 )
 
 type RegistrationMapper interface {
-	createRequestToRegistration(req *dto.RegistrationRequest) (*entity.Parent, *entity.ParentDetail, *entity.Children, *entity.Observation, error)
+	CreateRequestToRegistration(req *dto.RegistrationRequest) (*entity.Parent, *entity.ParentDetail, *entity.Children, *entity.Observation, error)
 }
 type registrationMapper struct{}
 
@@ -36,7 +36,7 @@ func stringToPointer(s string) *string {
 	return &s
 }
 
-func (m *registrationMapper) createRequestToRegistration(req *dto.RegistrationRequest) (*entity.Parent, *entity.ParentDetail, *entity.Children, *entity.Observation, error) {
+func (m *registrationMapper) CreateRequestToRegistration(req *dto.RegistrationRequest) (*entity.Parent, *entity.ParentDetail, *entity.Children, *entity.Observation, error) {
 	var encryptionKey = getEncryptionKey()
 
 	parentID := helpers.GenerateULID()
@@ -78,22 +78,28 @@ func (m *registrationMapper) createRequestToRegistration(req *dto.RegistrationRe
 		ChildGender:        req.ChildGender,
 		ChildBirthPlace:    req.ChildBirthPlace,
 		ChildBirthDate:     req.ChildBirthDate,
-		ChildAge:           req.ChildAge,
 		ChildAddress:       addressEncrypted,
 		ChildComplaint:     req.ChildComplaint,
-		ChildSchool:        stringToPointer(req.ChildSchool),
+		ChildSchool:        req.ChildSchool,
 		ChildServiceChoice: req.ChildServiceChoice,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
 	}
 
+	var childAge int
+
+	if !req.ChildBirthDate.ToTime().IsZero() {
+		birthTime := req.ChildBirthDate.ToTime()
+		childAge = helpers.CalculateAge(birthTime)
+	}
+
 	var ageCategory string
 	switch {
-	case req.ChildAge >= 2 && req.ChildAge <= 5:
+	case childAge >= 0 && childAge <= 5:
 		ageCategory = "Balita"
-	case req.ChildAge >= 6 && req.ChildAge <= 12:
+	case childAge >= 6 && childAge <= 12:
 		ageCategory = "Anak-anak"
-	case req.ChildAge >= 13 && req.ChildAge <= 17:
+	case childAge >= 13 && childAge <= 17:
 		ageCategory = "Remaja"
 	default:
 		ageCategory = "Lainnya"
@@ -105,7 +111,7 @@ func (m *registrationMapper) createRequestToRegistration(req *dto.RegistrationRe
 		ChildId:       childID,
 		Status:        string(constants.ObservationStatusPending),
 		AgeCategory:   ageCategory,
-		ScheduledDate: scheduledDate.Format("2006-01-02"),
+		ScheduledDate: helpers.DateOnly(scheduledDate),
 	}
 
 	return parent, parentDetail, child, observation, nil

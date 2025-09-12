@@ -11,12 +11,12 @@ import (
 )
 
 type RegistrationHandler struct {
-	registrationService usecase.RegistrationService
+	registrationUseCase usecase.RegistrationUseCase
 }
 
-func NewRegistrationHandler(registrationService usecase.RegistrationService) *RegistrationHandler {
+func NewRegistrationHandler(registrationUseCase usecase.RegistrationUseCase) *RegistrationHandler {
 	return &RegistrationHandler{
-		registrationService: registrationService,
+		registrationUseCase: registrationUseCase,
 	}
 }
 
@@ -28,7 +28,7 @@ func (h *RegistrationHandler) Registration(c *gin.Context) {
 		return
 	}
 
-	err := h.registrationService.Registration(c.Request.Context(), &req)
+	err := h.registrationUseCase.RegistrationUseCase(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return

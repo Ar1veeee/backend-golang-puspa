@@ -5,14 +5,13 @@ type ObservationStatus string
 type VerificationCodeStatus string
 
 const (
-	RegistrationStatusPending   RegistrationStatus = "pending"
-	RegistrationStatusScheduled RegistrationStatus = "scheduled"
-	RegistrationStatusCompleted RegistrationStatus = "completed"
+	RegistrationStatusPending  RegistrationStatus = "Pending"
+	RegistrationStatusComplete RegistrationStatus = "Complete"
 
-	ObservationStatusPending   ObservationStatus = "pending"
-	ObservationStatusCompleted ObservationStatus = "completed"
+	ObservationStatusPending   ObservationStatus = "Pending"
+	ObservationStatusCompleted ObservationStatus = "Complete"
 
-	VerificationCodeStatusPending VerificationCodeStatus = "pending"
-	VerificationCodeStatusUsed    VerificationCodeStatus = "used"
-	VerificationCodeStatusRevoked VerificationCodeStatus = "revoked"
+	VerificationCodeStatusPending VerificationCodeStatus = "Pending"
+	VerificationCodeStatusUsed    VerificationCodeStatus = "Used"
+	VerificationCodeStatusRevoked VerificationCodeStatus = "Revoked"
 )

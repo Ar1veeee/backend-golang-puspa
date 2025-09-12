@@ -16,7 +16,7 @@ type AuthMapper interface {
 	ResetPasswordRequestToUser(req *dto.ResetPasswordRequest) (*entity.User, error)
 	CreateVerificationCode(userId string) *entity.VerificationToken
 	CreateRefreshToken(userId string) *entity.RefreshToken
-	UserToLoginResponse(user *entity.User) *dto.LoginResponse
+	LoginResponse(user *entity.User) *dto.LoginResponse
 	RefreshTokenToResponse(token *entity.RefreshToken) *dto.RefreshTokenResponse
 	CreateVerificationAccountToken(userId, email, username string) (*entity.VerificationToken, error)
 	ResendEmailToken(userId string) (*entity.VerificationToken, error)
@@ -91,7 +91,7 @@ func (m *authMapper) CreateRefreshToken(userId string) *entity.RefreshToken {
 	}
 }
 
-func (m *authMapper) UserToLoginResponse(user *entity.User) *dto.LoginResponse {
+func (m *authMapper) LoginResponse(user *entity.User) *dto.LoginResponse {
 	return &dto.LoginResponse{
 		Id:        user.Id,
 		Username:  user.Username,
@@ -169,7 +169,7 @@ func (m *authMapper) CreateForgetPasswordToken(userId, email, username string) (
 	}
 
 	verifyLink := fmt.Sprintf("http://localhost:3000/api/v1/auth/update-password?token=%s", token)
-	if err := helpers.SendEmail(email, username, verifyLink, "forget_password_email", "Reset Password Anda"); err != nil {
+	if err := helpers.SendEmail(email, username, verifyLink, "reset_password_email", "Reset Password Anda"); err != nil {
 		log.Error().Err(err).Str("email", email).Msg("Failed to send forget password email")
 		return verificationCode, err
 	}

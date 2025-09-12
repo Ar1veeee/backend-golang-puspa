@@ -16,19 +16,6 @@ type User struct {
 	UpdatedAt time.Time
 }
 
-func (u *User) Validate() error {
-	if u.Email == "" {
-		return errors.New("email cannot be empty")
-	}
-	if u.Username == "" {
-		return errors.New("username cannot be empty")
-	}
-	if u.Password == "" {
-		return errors.New("password cannot be empty")
-	}
-	return nil
-}
-
 type VerificationToken struct {
 	Id        int
 	UserId    string
@@ -68,9 +55,10 @@ func (rt *RefreshToken) IsValid() error {
 }
 
 type Parent struct {
-	Id        string
-	UserId    *string
-	TempEmail string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	Id                 string
+	UserId             *string
+	TempEmail          string
+	RegistrationStatus string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }

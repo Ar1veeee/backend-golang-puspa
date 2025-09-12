@@ -12,7 +12,7 @@ func MigrateCreateParentDetailsTable(tx *gorm.DB) error {
 			parent_type       			ENUM('Ayah', 'Ibu', 'Wali')  			NOT NULL,
 			parent_name       			VARCHAR(100)         					NOT NULL,
 			parent_phone      			VARBINARY(100)       					NOT NULL,
-			parent_age 		  			INTEGER 							    NULL,
+			parent_birth_date 		  	DATE 							        NULL,
 			parent_occupation 			VARCHAR(100)                          	NULL,
 			relationship_with_child		VARCHAR(100) 							NULL,
 			created_at TIMESTAMP                                    DEFAULT CURRENT_TIMESTAMP,

@@ -23,8 +23,8 @@ func TherapistRoutes(rg *gin.RouterGroup, therapistHandler *handler.TherapistHan
 		middlewares.Authorize(constants.RoleAdmin),
 	)
 
-	users.GET("/", therapistHandler.FindUsers)
-	users.POST("/", therapistHandler.CreateUser)
+	users.GET("/", therapistHandler.FindAllTherapists)
+	users.POST("/", therapistHandler.CreateTherapist)
 	// users.GET("/:id", userHandler.FindUserById)
 	// users.PUT("/:id", userHandler.UpdateUser)
 	// users.DELETE("/:id", userHandler.DeleteUser)

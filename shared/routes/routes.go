@@ -3,10 +3,16 @@ package routes
 import (
 	authHandler "backend-golang/internal/auth/delivery/http/handler"
 	authRoutes "backend-golang/internal/auth/delivery/http/routes"
+
+	observationHandler "backend-golang/internal/observation/delivery/http/handler"
+	observationRoutes "backend-golang/internal/observation/delivery/http/routes"
+
 	registrationHandler "backend-golang/internal/registration/delivery/http/handler"
 	registrationRoutes "backend-golang/internal/registration/delivery/http/routes"
+
 	therapistHandler "backend-golang/internal/therapist/delivery/http/handler"
 	therapistRoutes "backend-golang/internal/therapist/delivery/http/routes"
+
 	"backend-golang/shared/middlewares"
 
 	"github.com/gin-contrib/cors"
@@ -17,6 +23,7 @@ func SetupRouter(
 	registrationHandler *registrationHandler.RegistrationHandler,
 	authHandler *authHandler.AuthHandler,
 	therapistHandler *therapistHandler.TherapistHandler,
+	observationHandlers *observationHandler.ObservationHandler,
 ) *gin.Engine {
 	router := gin.New()
 	router.Use(
@@ -40,6 +47,7 @@ func SetupRouter(
 		registrationRoutes.RegistrationRoutes(api, registrationHandler)
 		authRoutes.AuthRoutes(api, authHandler)
 		therapistRoutes.TherapistRoutes(api, therapistHandler)
+		observationRoutes.ObservationRoutes(api, observationHandlers)
 	}
 	return router
 }

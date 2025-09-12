@@ -3,6 +3,7 @@ package gorm
 import (
 	"backend-golang/internal/auth/entity"
 	"backend-golang/internal/auth/repository"
+	"backend-golang/shared/constants"
 	"backend-golang/shared/helpers"
 	"backend-golang/shared/models"
 	"context"
@@ -23,7 +24,7 @@ func NewAuthRepository(db *gorm.DB) repository.AuthRepository {
 
 func (r *authRepository) CreateUser(ctx context.Context, user *entity.User) error {
 	if user == nil {
-		return errors.New("user data cannot be nil")
+		return errors.New("user data cannot be empty")
 	}
 
 	dbUser := &models.User{
@@ -177,6 +178,26 @@ func (r *authRepository) UpdateUserActiveStatus(ctx context.Context, userId stri
 	return nil
 }
 
+func (r *authRepository) UpdateParentRegistrationStatus(ctx context.Context, userId string) error {
+	if userId == "" {
+		return errors.New("user id cannot be empty")
+	}
+
+	result := r.db.WithContext(ctx).Model(&models.Parent{}).
+		Where("user_id = ?", userId).
+		Update("registration_status", string(constants.RegistrationStatusComplete))
+
+	if result.Error != nil {
+		return errors.New("failed to update registration status")
+	}
+
+	if result.RowsAffected == 0 {
+		return errors.New("user not found")
+	}
+
+	return nil
+}
+
 func (r *authRepository) ResetUserPassword(ctx context.Context, userId, password string) error {
 	if userId == "" {
 		return errors.New("user id cannot be empty")
@@ -229,7 +250,7 @@ func (r *authRepository) VerifyAccountByToken(ctx context.Context, code string) 
 
 	var dbCode models.VerificationCode
 	if err := r.db.WithContext(ctx).
-		Where("code = ? AND status = ?", code, "pending").
+		Where("code = ? AND status = ?", code, string(constants.VerificationCodeStatusPending)).
 		First(&dbCode).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("verification token not found")
@@ -239,12 +260,12 @@ func (r *authRepository) VerifyAccountByToken(ctx context.Context, code string) 
 
 	claims, err := helpers.VerifyVerificationToken(code)
 	if err != nil {
-		r.db.WithContext(ctx).Model(&dbCode).Update("status", "revoked")
+		r.db.WithContext(ctx).Model(&dbCode).Update("status", string(constants.VerificationCodeStatusRevoked))
 		return nil, errors.New("invalid or expired verification token")
 	}
 
 	if claims.Subject != dbCode.UserId {
-		r.db.WithContext(ctx).Model(&dbCode).Update("status", "revoked")
+		r.db.WithContext(ctx).Model(&dbCode).Update("status", string(constants.VerificationCodeStatusRevoked))
 		return nil, errors.New("token user mismatch")
 	}
 
@@ -256,7 +277,7 @@ func (r *authRepository) VerifyAccountByToken(ctx context.Context, code string) 
 	}()
 
 	if err := tx.Model(&dbCode).
-		Update("status", "used").Error; err != nil {
+		Update("status", string(constants.VerificationCodeStatusUsed)).Error; err != nil {
 		tx.Rollback()
 		return nil, fmt.Errorf("failed to update verification code: %w", err)
 	}
@@ -402,16 +423,12 @@ func (r *authRepository) modelToRefreshTokenEntity(dbToken *models.RefreshToken)
 }
 
 func (r *authRepository) modelToParentEntity(dbParent *models.Parent) *entity.Parent {
-	var userID *string
-	if dbParent.UserId != nil {
-		userID = dbParent.UserId
-	}
-
 	return &entity.Parent{
-		Id:        dbParent.Id,
-		UserId:    userID,
-		TempEmail: dbParent.TempEmail,
-		CreatedAt: dbParent.CreatedAt,
-		UpdatedAt: dbParent.UpdatedAt,
+		Id:                 dbParent.Id,
+		UserId:             dbParent.UserId,
+		TempEmail:          dbParent.TempEmail,
+		RegistrationStatus: dbParent.RegistrationStatus,
+		CreatedAt:          dbParent.CreatedAt,
+		UpdatedAt:          dbParent.UpdatedAt,
 	}
 }

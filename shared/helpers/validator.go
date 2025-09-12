@@ -34,9 +34,9 @@ func TranslateErrorMessage(err error) map[string]string {
 			case "max":
 				errorsMap["error"] = fmt.Sprintf("%s maksimal memiliki %s karakter", field, fieldError.Param())
 			case "alphanum":
-				errorsMap["error"] = fmt.Sprintf("format %s tidak valid", field)
+				errorsMap["error"] = fmt.Sprintf("Format %s tidak valid", field)
 			default:
-				errorsMap["error"] = fmt.Sprintf("Invalid value for %s", field)
+				errorsMap["error"] = fmt.Sprintf("Data untuk %s tidak valid", field)
 			}
 		}
 	} else if err != nil {

@@ -25,6 +25,7 @@ func (r *registrationRepository) BeginTransaction(ctx context.Context) *gorm.DB 
 func (r *registrationRepository) CreateParentWithTx(ctx context.Context, tx *gorm.DB, parent *entity.Parent) error {
 	dbParent := &models.Parent{
 		Id:                 parent.Id,
+		UserId:             nil,
 		TempEmail:          parent.TempEmail,
 		RegistrationStatus: parent.RegistrationStatus,
 		CreatedAt:          parent.CreatedAt,
@@ -39,11 +40,14 @@ func (r *registrationRepository) CreateParentWithTx(ctx context.Context, tx *gor
 
 func (r *registrationRepository) CreateParentDetailWithTx(ctx context.Context, tx *gorm.DB, parentDetail *entity.ParentDetail) error {
 	dbParentDetail := &models.ParentDetail{
-		Id:          parentDetail.Id,
-		ParentId:    parentDetail.ParentId,
-		ParentType:  parentDetail.ParentType,
-		ParentName:  parentDetail.ParentName,
-		ParentPhone: parentDetail.ParentPhone,
+		Id:                    parentDetail.Id,
+		ParentId:              parentDetail.ParentId,
+		ParentType:            parentDetail.ParentType,
+		ParentName:            parentDetail.ParentName,
+		ParentPhone:           parentDetail.ParentPhone,
+		ParentBirthDate:       nil,
+		ParentOccupation:      nil,
+		RelationshipWithChild: nil,
 	}
 
 	if err := tx.WithContext(ctx).Create(&dbParentDetail).Error; err != nil {
@@ -61,11 +65,11 @@ func (r *registrationRepository) CreateChildWithTx(ctx context.Context, tx *gorm
 		ChildGender:        child.ChildGender,
 		ChildBirthPlace:    child.ChildBirthPlace,
 		ChildBirthDate:     child.ChildBirthDate,
-		ChildAge:           child.ChildAge,
 		ChildAddress:       child.ChildAddress,
 		ChildComplaint:     child.ChildComplaint,
 		ChildSchool:        child.ChildSchool,
 		ChildServiceChoice: child.ChildServiceChoice,
+		ChildReligion:      nil,
 		CreatedAt:          child.CreatedAt,
 		UpdatedAt:          child.UpdatedAt,
 	}
@@ -102,54 +106,4 @@ func (r *registrationRepository) ExistsByEmail(ctx context.Context, tx *gorm.DB,
 	}
 
 	return count > 0, nil
-}
-
-func (r *registrationRepository) modelToChildrenEntity(dbChildren *models.Children) *entity.Children {
-	var parentID string
-	if dbChildren.ParentId != "" {
-		parentID = dbChildren.ParentId
-	}
-
-	return &entity.Children{
-		Id:                 dbChildren.Id,
-		ParentId:           parentID,
-		ChildName:          dbChildren.ChildName,
-		ChildGender:        dbChildren.ChildGender,
-		ChildBirthPlace:    dbChildren.ChildBirthPlace,
-		ChildBirthDate:     dbChildren.ChildBirthDate,
-		ChildAge:           dbChildren.ChildAge,
-		ChildAddress:       dbChildren.ChildAddress,
-		ChildComplaint:     dbChildren.ChildComplaint,
-		ChildSchool:        dbChildren.ChildSchool,
-		ChildServiceChoice: dbChildren.ChildServiceChoice,
-		CreatedAt:          dbChildren.CreatedAt,
-		UpdatedAt:          dbChildren.UpdatedAt,
-	}
-}
-
-func (r *registrationRepository) modelToParentDetailEntity(dbParentDetail *models.ParentDetail) *entity.ParentDetail {
-	var parentID string
-	if dbParentDetail.ParentId != "" {
-		parentID = dbParentDetail.ParentId
-	}
-
-	return &entity.ParentDetail{
-		Id:          dbParentDetail.Id,
-		ParentId:    parentID,
-		ParentType:  dbParentDetail.ParentType,
-		ParentName:  dbParentDetail.ParentName,
-		ParentPhone: dbParentDetail.ParentPhone,
-		CreatedAt:   dbParentDetail.CreatedAt,
-		UpdatedAt:   dbParentDetail.UpdatedAt,
-	}
-}
-
-func (r *registrationRepository) modelToParentEntity(dbParent *models.Parent) *entity.Parent {
-	return &entity.Parent{
-		Id:                 dbParent.Id,
-		TempEmail:          dbParent.TempEmail,
-		RegistrationStatus: dbParent.RegistrationStatus,
-		CreatedAt:          dbParent.CreatedAt,
-		UpdatedAt:          dbParent.UpdatedAt,
-	}
 }

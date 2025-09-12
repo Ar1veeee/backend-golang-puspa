@@ -9,37 +9,37 @@ import (
 	"fmt"
 )
 
-type RegistrationService interface {
-	Registration(ctx context.Context, req *dto.RegistrationRequest) error
+type RegistrationUseCase interface {
+	RegistrationUseCase(ctx context.Context, req *dto.RegistrationRequest) error
 }
 
-type registrationService struct {
+type registrationUseCase struct {
 	registrationRepo repository.RegistrationRepository
 	validator        RegistrationValidator
 	mapper           RegistrationMapper
 }
 
-func NewRegistrationService(
+func NewRegistrationUseCase(
 	registrationRepo repository.RegistrationRepository,
-) RegistrationService {
-	return &registrationService{
+) RegistrationUseCase {
+	return &registrationUseCase{
 		registrationRepo: registrationRepo,
 		validator:        NewRegistrationValidator(),
 		mapper:           NewRegistrationMapper(),
 	}
 }
 
-func (s *registrationService) Registration(ctx context.Context, req *dto.RegistrationRequest) error {
-	if err := s.validator.validateRegisterRequest(req); err != nil {
+func (uc *registrationUseCase) RegistrationUseCase(ctx context.Context, req *dto.RegistrationRequest) error {
+	if err := uc.validator.ValidateRegisterRequest(req); err != nil {
 		return err
 	}
 
-	tx := s.registrationRepo.BeginTransaction(ctx)
+	tx := uc.registrationRepo.BeginTransaction(ctx)
 	if tx == nil {
 		return fmt.Errorf("%w: failed to begin transaction", globalErrors.ErrDatabaseConnection)
 	}
 
-	exists, err := s.registrationRepo.ExistsByEmail(ctx, tx, req.Email)
+	exists, err := uc.registrationRepo.ExistsByEmail(ctx, tx, req.Email)
 	if err != nil {
 		tx.Rollback()
 		return fmt.Errorf("%w: %v", globalErrors.ErrDatabaseConnection, err)
@@ -49,28 +49,28 @@ func (s *registrationService) Registration(ctx context.Context, req *dto.Registr
 		return globalErrors.ErrEmailExists
 	}
 
-	parent, parentDetail, child, observation, err := s.mapper.createRequestToRegistration(req)
+	parent, parentDetail, child, observation, err := uc.mapper.CreateRequestToRegistration(req)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	if err := s.registrationRepo.CreateParentWithTx(ctx, tx, parent); err != nil {
+	if err := uc.registrationRepo.CreateParentWithTx(ctx, tx, parent); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("%w: %v", registrationErrors.ErrRegistrationFailed, err)
 	}
 
-	if err := s.registrationRepo.CreateParentDetailWithTx(ctx, tx, parentDetail); err != nil {
+	if err := uc.registrationRepo.CreateParentDetailWithTx(ctx, tx, parentDetail); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("%w: %v", registrationErrors.ErrRegistrationFailed, err)
 	}
 
-	if err := s.registrationRepo.CreateChildWithTx(ctx, tx, child); err != nil {
+	if err = uc.registrationRepo.CreateChildWithTx(ctx, tx, child); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("%w: %v", registrationErrors.ErrRegistrationFailed, err)
 	}
 
-	if err := s.registrationRepo.CreateObservationWithTx(ctx, tx, observation); err != nil {
+	if err := uc.registrationRepo.CreateObservationWithTx(ctx, tx, observation); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("%w: %v", registrationErrors.ErrRegistrationFailed, err)
 	}

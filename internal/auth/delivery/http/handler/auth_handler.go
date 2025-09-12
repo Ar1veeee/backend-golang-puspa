@@ -28,7 +28,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	err := h.authService.RegisterService(c.Request.Context(), &req)
+	err := h.authService.RegisterUseCase(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -48,7 +48,7 @@ func (h *AuthHandler) ResendVerificationAccount(c *gin.Context) {
 		Email: email,
 	}
 
-	err := h.authService.ResendVerificationAccountService(c.Request.Context(), &req)
+	err := h.authService.ResendVerificationAccountUseCase(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -68,7 +68,7 @@ func (h *AuthHandler) VerificationAccount(c *gin.Context) {
 		Token: token,
 	}
 
-	err := h.authService.VerificationAccountService(c.Request.Context(), &req)
+	err := h.authService.VerificationAccountUseCase(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -89,7 +89,7 @@ func (h *AuthHandler) ForgetPassword(c *gin.Context) {
 		return
 	}
 
-	err := h.authService.ForgetPasswordService(c.Request.Context(), &req)
+	err := h.authService.ForgetPasswordUseCase(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -109,7 +109,7 @@ func (h *AuthHandler) ResendForgetPassword(c *gin.Context) {
 		Email: email,
 	}
 
-	err := h.authService.ResendForgetPasswordService(c.Request.Context(), &req)
+	err := h.authService.ResendForgetPasswordUseCase(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -133,7 +133,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 
 	req.Token = token
 
-	err := h.authService.ResetPasswordService(c.Request.Context(), &req)
+	err := h.authService.ResetPasswordUseCase(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -154,7 +154,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	userLogin, err := h.authService.LoginService(c.Request.Context(), &req)
+	userLogin, err := h.authService.LoginUseCase(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -185,7 +185,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	var refreshToken, err = h.authService.RefreshTokenService(c.Request.Context(), &req)
+	var refreshToken, err = h.authService.RefreshTokenUseCase(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -205,7 +205,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	if err := h.authService.LogoutService(c.Request.Context(), refreshToken); err != nil {
+	if err := h.authService.LogoutUseCase(c.Request.Context(), refreshToken); err != nil {
 		middlewares.AbortWithError(c, err)
 		return
 	}

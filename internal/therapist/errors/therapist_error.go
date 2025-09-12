@@ -1,10 +1,12 @@
 package errors
 
-import "errors"
+import (
+	sharedErrors "backend-golang/shared/errors"
+)
 
 var (
-	ErrTherapistCreationFailed  = errors.New("failed to create therapist")
-	ErrTherapistUpdateFailed    = errors.New("failed to update therapist")
-	ErrTherapistDeletionFailed  = errors.New("failed to delete therapist")
-	ErrTherapistRetrievalFailed = errors.New("failed to retrieve therapists")
+	ErrTherapistCreationFailed  = sharedErrors.InternalServer("therapist_creation_failed", "Gagal membuat akun terapis")
+	ErrTherapistUpdateFailed    = sharedErrors.InternalServer("therapist_update_failed", "failed to update therapist")
+	ErrTherapistDeletionFailed  = sharedErrors.InternalServer("therapist_delete_failed", "failed to delete therapist")
+	ErrTherapistRetrievalFailed = sharedErrors.InternalServer("therapist_retrieval_failed", "failed to retrieve therapists")
 )

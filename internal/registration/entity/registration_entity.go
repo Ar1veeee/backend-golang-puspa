@@ -1,21 +1,15 @@
 package entity
 
 import (
+	"backend-golang/shared/helpers"
 	"time"
 )
 
-type Children struct {
+type Parent struct {
 	Id                 string
-	ParentId           string
-	ChildName          string
-	ChildGender        string
-	ChildBirthPlace    string
-	ChildBirthDate     string
-	ChildAge           int
-	ChildAddress       []byte
-	ChildComplaint     string
-	ChildSchool        *string
-	ChildServiceChoice string
+	UserId             *string
+	TempEmail          string
+	RegistrationStatus string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }
@@ -30,10 +24,17 @@ type ParentDetail struct {
 	UpdatedAt   time.Time
 }
 
-type Parent struct {
+type Children struct {
 	Id                 string
-	TempEmail          string
-	RegistrationStatus string
+	ParentId           string
+	ChildName          string
+	ChildGender        string
+	ChildBirthPlace    string
+	ChildBirthDate     helpers.DateOnly
+	ChildAddress       []byte
+	ChildComplaint     string
+	ChildSchool        *string
+	ChildServiceChoice string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }
@@ -41,7 +42,7 @@ type Parent struct {
 type Observation struct {
 	Id            int
 	ChildId       string
-	ScheduledDate string
+	ScheduledDate helpers.DateOnly
 	AgeCategory   string
 	Status        string
 	CreatedAt     time.Time

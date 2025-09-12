@@ -20,19 +20,19 @@ import (
 
 const (
 	maxFailedAttempts = 5
-	lockoutDuration   = 15 * time.Minute
+	lockoutDuration   = 5 * time.Minute
 )
 
 type AuthUseCase interface {
-	RegisterService(ctx context.Context, req *dto.RegisterRequest) error
-	ResendVerificationAccountService(ctx context.Context, req *dto.ResendTokenRequest) error
-	VerificationAccountService(ctx context.Context, req *dto.VerifyTokenRequest) error
-	ForgetPasswordService(ctx context.Context, req *dto.ForgetPasswordRequest) error
-	ResendForgetPasswordService(ctx context.Context, req *dto.ResendTokenRequest) error
-	ResetPasswordService(ctx context.Context, req *dto.ResetPasswordRequest) error
-	LoginService(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, error)
-	RefreshTokenService(ctx context.Context, req *dto.RefreshTokenRequest) (*dto.RefreshTokenResponse, error)
-	LogoutService(ctx context.Context, refreshToken string) error
+	RegisterUseCase(ctx context.Context, req *dto.RegisterRequest) error
+	ResendVerificationAccountUseCase(ctx context.Context, req *dto.ResendTokenRequest) error
+	VerificationAccountUseCase(ctx context.Context, req *dto.VerifyTokenRequest) error
+	ForgetPasswordUseCase(ctx context.Context, req *dto.ForgetPasswordRequest) error
+	ResendForgetPasswordUseCase(ctx context.Context, req *dto.ResendTokenRequest) error
+	ResetPasswordUseCase(ctx context.Context, req *dto.ResetPasswordRequest) error
+	LoginUseCase(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, error)
+	RefreshTokenUseCase(ctx context.Context, req *dto.RefreshTokenRequest) (*dto.RefreshTokenResponse, error)
+	LogoutUseCase(ctx context.Context, refreshToken string) error
 }
 
 type authUseCase struct {
@@ -54,7 +54,7 @@ func NewAuthUseCase(
 	}
 }
 
-func (uc *authUseCase) RegisterService(ctx context.Context, req *dto.RegisterRequest) error {
+func (uc *authUseCase) RegisterUseCase(ctx context.Context, req *dto.RegisterRequest) error {
 	if err := uc.validator.ValidateRegisterRequest(req); err != nil {
 		log.Warn().Err(err).Str("email", req.Email).Msg("Registration validation failed")
 		return err
@@ -123,7 +123,7 @@ func (uc *authUseCase) RegisterService(ctx context.Context, req *dto.RegisterReq
 	return nil
 }
 
-func (uc *authUseCase) ResendVerificationAccountService(ctx context.Context, req *dto.ResendTokenRequest) error {
+func (uc *authUseCase) ResendVerificationAccountUseCase(ctx context.Context, req *dto.ResendTokenRequest) error {
 	if err := uc.validator.ValidateResendEmailRequest(req); err != nil {
 		log.Warn().Err(err).Str("email", req.Email).Msg("Registration validation failed")
 		return err
@@ -178,7 +178,7 @@ func (uc *authUseCase) ResendVerificationAccountService(ctx context.Context, req
 	return nil
 }
 
-func (uc *authUseCase) VerificationAccountService(ctx context.Context, req *dto.VerifyTokenRequest) error {
+func (uc *authUseCase) VerificationAccountUseCase(ctx context.Context, req *dto.VerifyTokenRequest) error {
 	if err := uc.validator.VerificationAccountRequest(req); err != nil {
 		log.Warn().Err(err).Str("token", req.Token).Msg("Verification account failed")
 		return err
@@ -202,6 +202,11 @@ func (uc *authUseCase) VerificationAccountService(ctx context.Context, req *dto.
 		return authErrors.ErrTokenExpired
 	}
 
+	if err := uc.authRepo.UpdateParentRegistrationStatus(ctx, verificationToken.UserId); err != nil {
+		log.Error().Err(err).Str("userId", verificationToken.UserId).Msg("Failed to complete registration")
+		return globalErrors.ErrInternalServer
+	}
+
 	if err := uc.authRepo.UpdateUserActiveStatus(ctx, verificationToken.UserId, true); err != nil {
 		log.Error().Err(err).Str("userId", verificationToken.UserId).Msg("Failed to activate user")
 		return globalErrors.ErrInternalServer
@@ -214,7 +219,7 @@ func (uc *authUseCase) VerificationAccountService(ctx context.Context, req *dto.
 	return nil
 }
 
-func (uc *authUseCase) ForgetPasswordService(ctx context.Context, req *dto.ForgetPasswordRequest) error {
+func (uc *authUseCase) ForgetPasswordUseCase(ctx context.Context, req *dto.ForgetPasswordRequest) error {
 	if err := uc.validator.ValidateForgetPasswordRequest(req); err != nil {
 		return err
 	}
@@ -240,7 +245,7 @@ func (uc *authUseCase) ForgetPasswordService(ctx context.Context, req *dto.Forge
 	return nil
 }
 
-func (uc *authUseCase) ResendForgetPasswordService(ctx context.Context, req *dto.ResendTokenRequest) error {
+func (uc *authUseCase) ResendForgetPasswordUseCase(ctx context.Context, req *dto.ResendTokenRequest) error {
 	if err := uc.validator.ValidateResendEmailRequest(req); err != nil {
 		log.Warn().Err(err).Str("email", req.Email).Msg("Registration validation failed")
 		return err
@@ -286,7 +291,7 @@ func (uc *authUseCase) ResendForgetPasswordService(ctx context.Context, req *dto
 		log.Info().Str("userId", user.Id).Str("email", req.Email).Msg("Created and saved new verification token")
 	}
 
-	if err := helpers.SendEmail(user.Email, user.Username, verifyLink, "forget_password_email", "Reset Password Anda"); err != nil {
+	if err := helpers.SendEmail(user.Email, user.Username, verifyLink, "reset_password_email", "Reset Password Anda"); err != nil {
 		log.Error().Err(err).Str("email", user.Email).Msg("Failed to send verification email")
 		return globalErrors.ErrInternalServer
 	}
@@ -295,7 +300,7 @@ func (uc *authUseCase) ResendForgetPasswordService(ctx context.Context, req *dto
 	return nil
 }
 
-func (uc *authUseCase) ResetPasswordService(ctx context.Context, req *dto.ResetPasswordRequest) error {
+func (uc *authUseCase) ResetPasswordUseCase(ctx context.Context, req *dto.ResetPasswordRequest) error {
 	if err := uc.validator.ValidateResetPasswordRequest(req); err != nil {
 		log.Warn().Err(err).Msg("Reset password validation failed")
 		return err
@@ -341,7 +346,7 @@ func (uc *authUseCase) ResetPasswordService(ctx context.Context, req *dto.ResetP
 	return nil
 }
 
-func (uc *authUseCase) LoginService(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, error) {
+func (uc *authUseCase) LoginUseCase(ctx context.Context, req *dto.LoginRequest) (*dto.LoginResponse, error) {
 	if err := uc.validator.ValidateLoginRequest(req); err != nil {
 		log.Warn().Err(err).Str("identifier", req.Identifier).Msg("Login validation failed")
 		return nil, err
@@ -384,7 +389,7 @@ func (uc *authUseCase) LoginService(ctx context.Context, req *dto.LoginRequest) 
 		return nil, err
 	}
 
-	response := uc.mapper.UserToLoginResponse(user)
+	response := uc.mapper.LoginResponse(user)
 	response.AccessToken = accessToken
 	response.RefreshToken = refreshToken
 
@@ -396,7 +401,7 @@ func (uc *authUseCase) LoginService(ctx context.Context, req *dto.LoginRequest) 
 	return response, nil
 }
 
-func (uc *authUseCase) RefreshTokenService(ctx context.Context, req *dto.RefreshTokenRequest) (*dto.RefreshTokenResponse, error) {
+func (uc *authUseCase) RefreshTokenUseCase(ctx context.Context, req *dto.RefreshTokenRequest) (*dto.RefreshTokenResponse, error) {
 	if req.RefreshToken == "" {
 		log.Warn().Msg("Refresh token cannot be nil")
 		return nil, authErrors.ErrInvalidRefreshToken
@@ -437,7 +442,7 @@ func (uc *authUseCase) RefreshTokenService(ctx context.Context, req *dto.Refresh
 	return response, nil
 }
 
-func (uc *authUseCase) LogoutService(ctx context.Context, refreshToken string) error {
+func (uc *authUseCase) LogoutUseCase(ctx context.Context, refreshToken string) error {
 	if refreshToken == "" {
 		log.Warn().Msg("Logout attempt with empty refresh token")
 		return authErrors.ErrInvalidRefreshToken

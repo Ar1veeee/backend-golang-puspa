@@ -11,7 +11,7 @@ func MigrateCreateObservationsTable(tx *gorm.DB) error {
 			child_id CHAR(26) NOT NULL,
 			therapist_id CHAR(26) NULL,
 			scheduled_date DATE NOT NULL,
-			age_category ENUM('Balita', 'Anak-anak', 'Remaja', 'Lainya') NOT NULL,
+			age_category ENUM('Balita', 'Anak-anak', 'Remaja', 'Lainnya') NOT NULL,
 			total_score INTEGER NULL,
 			conclusion TEXT NULL,
 			recommendation TEXT NULL,

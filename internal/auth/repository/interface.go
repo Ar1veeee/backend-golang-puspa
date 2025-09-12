@@ -14,6 +14,7 @@ type AuthRepository interface {
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 	ExistsByUsername(ctx context.Context, username string) (bool, error)
 	UpdateUserActiveStatus(ctx context.Context, userID string, isActive bool) error
+	UpdateParentRegistrationStatus(ctx context.Context, userId string) error
 	ResetUserPassword(ctx context.Context, userId, newPassword string) error
 
 	SaveVerificationToken(ctx context.Context, code *entity.VerificationToken) error
