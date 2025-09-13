@@ -185,7 +185,8 @@ func (r *authRepository) UpdateParentRegistrationStatus(ctx context.Context, use
 
 	result := r.db.WithContext(ctx).Model(&models.Parent{}).
 		Where("user_id = ?", userId).
-		Update("registration_status", string(constants.RegistrationStatusComplete))
+		Update("registration_status", string(constants.RegistrationStatusComplete)).
+		Delete("temp_email")
 
 	if result.Error != nil {
 		return errors.New("failed to update registration status")
