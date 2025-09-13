@@ -170,6 +170,11 @@ func runMigrations(db *gorm.DB) error {
 			Migrate:  migrations.MigrateCreateObservationAnswersTable,
 			Rollback: migrations.RollbackCreateObservationAnswersTable,
 		},
+		{
+			ID:       "202509130816_create_admins_table",
+			Migrate:  migrations.MigrateCreateAdminsTable,
+			Rollback: migrations.RollbackCreateAdminsTable,
+		},
 	})
 
 	if err := m.Migrate(); err != nil {
