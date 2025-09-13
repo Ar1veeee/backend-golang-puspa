@@ -20,8 +20,10 @@ func ObservationRoutes(rg *gin.RouterGroup, observationHandler *handler.Observat
 	observations.Use(
 		middlewares.Authenticate(),
 		middlewares.RateLimiterUserID(client, 1*time.Second, 100),
-		middlewares.Authorize(constants.RoleTherapist),
+		middlewares.Authorize(constants.RoleTherapist, constants.RoleAdmin),
 	)
 
-	observations.GET("/", observationHandler.FindAllObservations)
+	observations.GET("/", observationHandler.PendingObservations)
+	observations.GET("/:observation_id", observationHandler.DetailObservation)
+	observations.GET("/completed", observationHandler.CompletedObservations)
 }

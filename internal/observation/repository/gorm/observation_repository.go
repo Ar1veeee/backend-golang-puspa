@@ -5,6 +5,7 @@ import (
 	"backend-golang/internal/observation/repository"
 	"backend-golang/shared/models"
 	"context"
+	"errors"
 	"fmt"
 
 	"gorm.io/gorm"
@@ -25,9 +26,10 @@ func (r *observationRepository) GetPendingObservations(ctx context.Context) ([]*
 		Preload("Children").
 		Preload("Children.Parent").
 		Preload("Children.Parent.ParentDetail").
-		Where("status = ?", "pending").
+		Where("status = ?", "Pending").
+		Order("scheduled_date desc").
 		Find(&dbObservations).Error; err != nil {
-		return nil, fmt.Errorf("failed to get observations: %w", err)
+		return nil, fmt.Errorf("failed to get pending observations: %w", err)
 	}
 
 	var observations []*entity.Observation
@@ -37,6 +39,54 @@ func (r *observationRepository) GetPendingObservations(ctx context.Context) ([]*
 	}
 
 	return observations, nil
+}
+
+func (r *observationRepository) GetCompletedObservations(ctx context.Context) ([]*entity.Observation, error) {
+	var dbObservations []*models.Observation
+
+	if err := r.db.WithContext(ctx).
+		Preload("Children").
+		Preload("Children.Parent").
+		Preload("Children.Parent.ParentDetail").
+		Where("status = ?", "Complete").
+		Order("scheduled_date asc").
+		Find(&dbObservations).Error; err != nil {
+		return nil, fmt.Errorf("failed to get completed observations: %w", err)
+	}
+
+	var observations []*entity.Observation
+	for _, dbObservation := range dbObservations {
+		observation := r.modelToObservationsEntity(dbObservation)
+		observations = append(observations, observation)
+	}
+
+	return observations, nil
+}
+
+func (r *observationRepository) GetObservationById(ctx context.Context, id int) (*entity.Observation, error) {
+	if id == 0 {
+		return nil, errors.New("id cannot be empty")
+	}
+
+	var dbObservations models.Observation
+
+	if err := r.db.WithContext(ctx).
+		Preload("Children").
+		Preload("Children.Parent").
+		Preload("Children.Parent.ParentDetail").
+		First(&dbObservations, "id = ?", id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("observation not found")
+		}
+		return nil, errors.New("failed to find observation by id")
+	}
+
+	observation := r.modelToObservationsEntity(&dbObservations)
+	if observation == nil {
+		return nil, errors.New("failed to find observation by id")
+	}
+
+	return observation, nil
 }
 
 func (r *observationRepository) modelToParentEntity(dbParent *models.Parent) *entity.Parent {
@@ -76,16 +126,6 @@ func (r *observationRepository) modelToParentDetailEntity(dbParentDetail *models
 		UpdatedAt:   dbParentDetail.UpdatedAt,
 	}
 
-	if dbParentDetail.ParentBirthDate != nil {
-		parentDetail.ParentBirthDate = dbParentDetail.ParentBirthDate
-	}
-	if dbParentDetail.ParentOccupation != nil {
-		parentDetail.ParentOccupation = dbParentDetail.ParentOccupation
-	}
-	if dbParentDetail.RelationshipWithChild != nil {
-		parentDetail.RelationshipWithChild = dbParentDetail.RelationshipWithChild
-	}
-
 	return parentDetail
 }
 
@@ -103,10 +143,6 @@ func (r *observationRepository) modelToChildrenEntity(dbChildren *models.Childre
 		ChildServiceChoice: dbChildren.ChildServiceChoice,
 		CreatedAt:          dbChildren.CreatedAt,
 		UpdatedAt:          dbChildren.UpdatedAt,
-	}
-
-	if dbChildren.ChildReligion != nil {
-		child.ChildrenReligion = dbChildren.ChildReligion
 	}
 
 	if dbChildren.Parent != nil {

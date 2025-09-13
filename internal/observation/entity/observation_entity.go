@@ -14,6 +14,8 @@ type User struct {
 	IsActive  bool
 	CreatedAt time.Time
 	UpdatedAt time.Time
+
+	Parent *Parent `json:"parent,omitempty"`
 }
 
 type Parent struct {
@@ -30,16 +32,13 @@ type Parent struct {
 }
 
 type ParentDetail struct {
-	Id                    string
-	ParentId              string
-	ParentType            string
-	ParentName            string
-	ParentPhone           []byte
-	ParentBirthDate       *string
-	ParentOccupation      *string
-	RelationshipWithChild *string
-	CreatedAt             time.Time
-	UpdatedAt             time.Time
+	Id          string
+	ParentId    string
+	ParentType  string
+	ParentName  string
+	ParentPhone []byte
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 
 	Parent *Parent `json:"parent,omitempty"`
 }
@@ -55,7 +54,6 @@ type Children struct {
 	ChildComplaint     string
 	ChildSchool        *string
 	ChildServiceChoice string
-	ChildrenReligion   *string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 

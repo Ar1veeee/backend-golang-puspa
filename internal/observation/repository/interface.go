@@ -7,4 +7,6 @@ import (
 
 type ObservationRepository interface {
 	GetPendingObservations(ctx context.Context) ([]*entity.Observation, error)
+	GetCompletedObservations(ctx context.Context) ([]*entity.Observation, error)
+	GetObservationById(ctx context.Context, id int) (*entity.Observation, error)
 }
