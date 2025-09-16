@@ -1,7 +1,7 @@
 package redis
 
 import (
-	"backend-golang/shared/config"
+	"backend-golang/internal/infrastructure/config"
 	"context"
 	"fmt"
 	"sync"

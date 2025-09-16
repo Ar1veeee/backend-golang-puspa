@@ -1,7 +1,7 @@
 package logger
 
 import (
-	"backend-golang/shared/config"
+	"backend-golang/internal/infrastructure/config"
 	"os"
 	"time"
 
