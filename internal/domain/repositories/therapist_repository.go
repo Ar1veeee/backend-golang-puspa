@@ -12,6 +12,7 @@ type TherapistRepository interface {
 
 	GetAll(ctx context.Context) ([]*entities.Therapist, error)
 	GetById(ctx context.Context, adminId string) (*entities.Therapist, error)
+	GetByUserId(ctx context.Context, userId string) (*entities.Therapist, error)
 
 	Update(ctx context.Context, tx *gorm.DB, admin *entities.Therapist) error
 

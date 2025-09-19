@@ -4,7 +4,7 @@ import (
 	"backend-golang/internal/adapters/http/dto"
 	"backend-golang/internal/adapters/http/middlewares"
 	"backend-golang/internal/adapters/http/types"
-	"backend-golang/internal/usecases"
+	"backend-golang/internal/usecases/therapist"
 	"fmt"
 	"net/http"
 
@@ -12,12 +12,26 @@ import (
 )
 
 type TherapistHandler struct {
-	therapistUC usecases.TherapistUseCase
+	CreateTherapistUC     therapist.CreateTherapistUseCase
+	FindTherapistsUC      therapist.FindTherapistsUseCase
+	FindTherapistDetailUC therapist.FindTherapistDetailUseCase
+	UpdateTherapistUC     therapist.UpdateTherapistUseCase
+	DeleteTherapistUC     therapist.DeleteTherapistUseCase
 }
 
-func NewTherapistHandler(therapistUC usecases.TherapistUseCase) *TherapistHandler {
+func NewTherapistHandler(
+	createUC therapist.CreateTherapistUseCase,
+	findUC therapist.FindTherapistsUseCase,
+	findDetailUC therapist.FindTherapistDetailUseCase,
+	updateUC therapist.UpdateTherapistUseCase,
+	deleteUC therapist.DeleteTherapistUseCase,
+) *TherapistHandler {
 	return &TherapistHandler{
-		therapistUC: therapistUC,
+		CreateTherapistUC:     createUC,
+		FindTherapistsUC:      findUC,
+		FindTherapistDetailUC: findDetailUC,
+		UpdateTherapistUC:     updateUC,
+		DeleteTherapistUC:     deleteUC,
 	}
 }
 
@@ -29,7 +43,7 @@ func (h *TherapistHandler) CreateTherapist(c *gin.Context) {
 		return
 	}
 
-	err := h.therapistUC.CreateTherapistUseCase(c.Request.Context(), &req)
+	err := h.CreateTherapistUC.Execute(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -43,7 +57,7 @@ func (h *TherapistHandler) CreateTherapist(c *gin.Context) {
 }
 
 func (h *TherapistHandler) FindTherapists(c *gin.Context) {
-	therapists, err := h.therapistUC.FindTherapistsUseCase(c.Request.Context())
+	therapists, err := h.FindTherapistsUC.Execute(c.Request.Context())
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -59,7 +73,7 @@ func (h *TherapistHandler) FindTherapists(c *gin.Context) {
 func (h TherapistHandler) FindTherapistDetail(c *gin.Context) {
 	therapistId := c.Param("therapist_id")
 
-	therapistDetail, err := h.therapistUC.FindTherapistDetailUseCase(c.Request.Context(), therapistId)
+	therapistDetail, err := h.FindTherapistDetailUC.Execute(c.Request.Context(), therapistId)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -85,7 +99,7 @@ func (h TherapistHandler) UpdateTherapist(c *gin.Context) {
 		return
 	}
 
-	if err := h.therapistUC.UpdateTherapistUseCase(c.Request.Context(), therapistId, &req); err != nil {
+	if err := h.UpdateTherapistUC.Execute(c.Request.Context(), therapistId, &req); err != nil {
 		middlewares.AbortWithError(c, err)
 		return
 	}
@@ -104,7 +118,7 @@ func (h TherapistHandler) DeleteTherapist(c *gin.Context) {
 		middlewares.AbortWithError(c, fmt.Errorf("therapistId is empty"))
 	}
 
-	if err := h.therapistUC.DeleteTherapistWithTx(c.Request.Context(), therapistId); err != nil {
+	if err := h.DeleteTherapistUC.Execute(c.Request.Context(), therapistId); err != nil {
 		middlewares.AbortWithError(c, err)
 		return
 	}

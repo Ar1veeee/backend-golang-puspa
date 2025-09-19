@@ -4,19 +4,45 @@ import (
 	"backend-golang/internal/adapters/http/dto"
 	"backend-golang/internal/adapters/http/middlewares"
 	"backend-golang/internal/adapters/http/types"
-	"backend-golang/internal/usecases"
+	"backend-golang/internal/usecases/auth"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
-	authUC usecases.AuthUseCase
+	RegisterUC                  auth.RegisterUseCase
+	LoginUC                     auth.LoginUseCase
+	ResetPasswordUC             auth.ResetPasswordUseCase
+	RefreshTokenUC              auth.RefreshTokenUseCase
+	LogoutUC                    auth.LogoutUseCase
+	ResendVerificationAccountUC auth.ResendVerificationAccountUseCase
+	VerificationAccountUC       auth.VerificationAccountUseCase
+	ForgetPasswordUC            auth.ForgetPasswordUseCase
+	ResendForgetPasswordUC      auth.ResendForgetPasswordUseCase
 }
 
-func NewAuthHandler(authUC usecases.AuthUseCase) *AuthHandler {
+func NewAuthHandler(
+	registerUC auth.RegisterUseCase,
+	loginUC auth.LoginUseCase,
+	resetPasswordUC auth.ResetPasswordUseCase,
+	refreshTokenUC auth.RefreshTokenUseCase,
+	logoutUC auth.LogoutUseCase,
+	resendVerificationAccountUC auth.ResendVerificationAccountUseCase,
+	verificationAccountUC auth.VerificationAccountUseCase,
+	forgetPasswordUC auth.ForgetPasswordUseCase,
+	resendForgetPasswordUC auth.ResendForgetPasswordUseCase,
+) *AuthHandler {
 	return &AuthHandler{
-		authUC: authUC,
+		RegisterUC:                  registerUC,
+		LoginUC:                     loginUC,
+		ResetPasswordUC:             resetPasswordUC,
+		RefreshTokenUC:              refreshTokenUC,
+		LogoutUC:                    logoutUC,
+		ResendVerificationAccountUC: resendVerificationAccountUC,
+		VerificationAccountUC:       verificationAccountUC,
+		ForgetPasswordUC:            forgetPasswordUC,
+		ResendForgetPasswordUC:      resendForgetPasswordUC,
 	}
 }
 
@@ -28,7 +54,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	err := h.authUC.RegisterUseCase(c.Request.Context(), &req)
+	err := h.RegisterUC.Execute(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -48,7 +74,7 @@ func (h *AuthHandler) ResendVerificationAccount(c *gin.Context) {
 		Email: email,
 	}
 
-	err := h.authUC.ResendVerificationAccountUseCase(c.Request.Context(), &req)
+	err := h.ResendVerificationAccountUC.Execute(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -68,7 +94,7 @@ func (h *AuthHandler) VerificationAccount(c *gin.Context) {
 		Token: token,
 	}
 
-	err := h.authUC.VerificationAccountUseCase(c.Request.Context(), &req)
+	err := h.VerificationAccountUC.Execute(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -89,7 +115,7 @@ func (h *AuthHandler) ForgetPassword(c *gin.Context) {
 		return
 	}
 
-	err := h.authUC.ForgetPasswordUseCase(c.Request.Context(), &req)
+	err := h.ForgetPasswordUC.Execute(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -109,7 +135,7 @@ func (h *AuthHandler) ResendForgetPassword(c *gin.Context) {
 		Email: email,
 	}
 
-	err := h.authUC.ResendForgetPasswordUseCase(c.Request.Context(), &req)
+	err := h.ResendForgetPasswordUC.Execute(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -133,7 +159,7 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 
 	req.Token = token
 
-	err := h.authUC.ResetPasswordUseCase(c.Request.Context(), &req)
+	err := h.ResetPasswordUC.Execute(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -154,7 +180,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	userLogin, err := h.authUC.LoginUseCase(c.Request.Context(), &req)
+	userLogin, err := h.LoginUC.Execute(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -185,7 +211,7 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	var refreshToken, err = h.authUC.RefreshTokenUseCase(c.Request.Context(), &req)
+	var refreshToken, err = h.RefreshTokenUC.Execute(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -205,7 +231,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		return
 	}
 
-	if err := h.authUC.LogoutUseCase(c.Request.Context(), refreshToken); err != nil {
+	if err := h.LogoutUC.Execute(c.Request.Context(), refreshToken); err != nil {
 		middlewares.AbortWithError(c, err)
 		return
 	}

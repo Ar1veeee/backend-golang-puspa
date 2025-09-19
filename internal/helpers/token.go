@@ -30,7 +30,8 @@ func GenerateToken(userId string, role constants.Role) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(config.JWTKey)
+	tokenString, err := token.SignedString(config.JWTKey)
+	return tokenString, err
 }
 
 func GenerateVerificationToken(userId string) (string, time.Time, error) {

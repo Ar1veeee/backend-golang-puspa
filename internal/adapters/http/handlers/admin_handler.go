@@ -4,7 +4,7 @@ import (
 	"backend-golang/internal/adapters/http/dto"
 	"backend-golang/internal/adapters/http/middlewares"
 	"backend-golang/internal/adapters/http/types"
-	"backend-golang/internal/usecases"
+	"backend-golang/internal/usecases/admin"
 	"fmt"
 	"net/http"
 
@@ -12,12 +12,26 @@ import (
 )
 
 type AdminHandler struct {
-	adminUC usecases.AdminUseCase
+	CreateAdminUC     admin.CreateAdminUseCase
+	FindAdminsUC      admin.FindAdminsUseCase
+	FindAdminDetailUC admin.FindAdminDetailUseCase
+	UpdateAdminUC     admin.UpdateAdminUseCase
+	DeleteAdminUC     admin.DeleteAdminUseCase
 }
 
-func NewAdminHandler(adminUC usecases.AdminUseCase) *AdminHandler {
+func NewAdminHandler(
+	createUC admin.CreateAdminUseCase,
+	findUC admin.FindAdminsUseCase,
+	findDetailUC admin.FindAdminDetailUseCase,
+	updateUC admin.UpdateAdminUseCase,
+	deleteUC admin.DeleteAdminUseCase,
+) *AdminHandler {
 	return &AdminHandler{
-		adminUC: adminUC,
+		CreateAdminUC:     createUC,
+		FindAdminsUC:      findUC,
+		FindAdminDetailUC: findDetailUC,
+		UpdateAdminUC:     updateUC,
+		DeleteAdminUC:     deleteUC,
 	}
 }
 
@@ -29,7 +43,7 @@ func (h AdminHandler) CreateAdmin(c *gin.Context) {
 		return
 	}
 
-	if err := h.adminUC.CreateAdminUseCase(c.Request.Context(), &req); err != nil {
+	if err := h.CreateAdminUC.Execute(c.Request.Context(), &req); err != nil {
 		middlewares.AbortWithError(c, err)
 		return
 	}
@@ -42,7 +56,7 @@ func (h AdminHandler) CreateAdmin(c *gin.Context) {
 }
 
 func (h AdminHandler) FindAdmins(c *gin.Context) {
-	admins, err := h.adminUC.FindAdminsUseCase(c.Request.Context())
+	admins, err := h.FindAdminsUC.Execute(c.Request.Context())
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -58,7 +72,7 @@ func (h AdminHandler) FindAdmins(c *gin.Context) {
 func (h AdminHandler) FindAdminDetail(c *gin.Context) {
 	adminId := c.Param("admin_id")
 
-	adminDetail, err := h.adminUC.FindAdminDetailUseCase(c.Request.Context(), adminId)
+	adminDetail, err := h.FindAdminDetailUC.Execute(c.Request.Context(), adminId)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return
@@ -85,7 +99,7 @@ func (h AdminHandler) UpdateAdmin(c *gin.Context) {
 		return
 	}
 
-	if err := h.adminUC.UpdateAdminUseCase(c.Request.Context(), adminId, &req); err != nil {
+	if err := h.UpdateAdminUC.Execute(c.Request.Context(), adminId, &req); err != nil {
 		middlewares.AbortWithError(c, err)
 		return
 	}
@@ -105,7 +119,7 @@ func (h AdminHandler) DeleteAdmin(c *gin.Context) {
 		return
 	}
 
-	if err := h.adminUC.DeleteAdminWithTx(c.Request.Context(), adminId); err != nil {
+	if err := h.DeleteAdminUC.Execute(c.Request.Context(), adminId); err != nil {
 		middlewares.AbortWithError(c, err)
 		return
 	}

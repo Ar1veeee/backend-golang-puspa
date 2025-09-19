@@ -3,9 +3,9 @@ package persistence
 import (
 	"backend-golang/internal/domain/entities"
 	"backend-golang/internal/domain/repositories"
+	"backend-golang/internal/infrastructure/database/models"
 	"context"
 
-	"backend-golang/pkg/models"
 	"errors"
 	"fmt"
 
@@ -81,6 +81,21 @@ func (r *therapistRepository) GetById(ctx context.Context, therapistId string) (
 	}
 
 	return therapist, nil
+}
+
+func (r *therapistRepository) GetByUserId(ctx context.Context, userId string) (*entities.Therapist, error) {
+	var dbTherapist models.Therapist
+
+	if err := r.db.WithContext(ctx).
+		Where("user_id = ?", userId).
+		First(&dbTherapist).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("therapist with id %s not found", userId)
+		}
+		return nil, fmt.Errorf("failed get therapist with id %s: %w", userId, err)
+	}
+
+	return r.modelToTherapistEntity(&dbTherapist), nil
 }
 
 func (r *therapistRepository) Update(ctx context.Context, tx *gorm.DB, therapist *entities.Therapist) error {

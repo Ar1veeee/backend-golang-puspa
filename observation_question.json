@@ -1,0 +1,114 @@
+INSERT INTO observation_questions (question_code, age_category, question_number, question_text, score) VALUES
+
+-- Usia 2 - 5 Tahun
+-- Balita Perilaku & Emosi (BPE)
+('BPE-01', 'Balita', 1, 'Hipoaktif atau bergerak tidak bertujuan', 3),
+('BPE-02', 'Balita', 2, 'Hipoaktif atau lamban gerak', 3),
+('BPE-03', 'Balita', 3, 'Tidak mampu mengikuti aturan', 2),
+('BPE-04', 'Balita', 4, 'Menyakiti diri sendiri', 3),
+('BPE-05', 'Balita', 5, 'Menyerang orang lain ketika marah', 1),
+('BPE-06', 'Balita', 6, 'Perilaku repetitif atau berulang-ulang', 3),
+('BPE-07', 'Balita', 7, 'Tidak dapat duduk tenang', 1),
+('BPE-08', 'Balita', 8, 'Anak Jalan jinjit', 2),
+
+-- Balita Fisik & Motorik(BFM)
+('BFM-01', 'Balita', 9, 'Kelainan pada anggota tubuh atau pemakaian alat bantu', 1),
+('BFM-02', 'Balita', 10, 'Tdak mampu melompat', 2),
+('BFM-03', 'Balita', 11, 'TIdak mampu mengikuti contoh gerakan seperti senam', 1),
+('BFM-04', 'Balita', 12, 'Tidak mampu membuat bentuk sederhana dari playdough', 2),
+('BFM-05', 'Balita', 13, 'Tidak mampu merobek kertas', 2),
+
+-- Balita Bahasa & Bicara (BBB)
+('BBB-01', 'Balita', 14, 'Saat ditanya mengulang pertanyaan atau perkataan', 1),
+('BBB-02', 'Balita', 15, 'Tdak mampu memahami perintah/instruksi', 2),
+('BBB-03', 'Balita', 16, 'TIdak mampu berkomunikasi 2 arah.tanya jawab', 3),
+
+-- Balita Kognitif & Akademik (BKA)
+('BKA-01', 'Balita', 16, 'Tidak mampu menyelesaikan aktifitas', 2),
+('BKA-02', 'Balita', 17, 'Tidak mampu mempertahankan atensi dan konsentrasi ketika diberi tugas', 2),
+('BKA-03', 'Balita', 18, 'Tidak mampu menyebutkan identitas diri dan anggota keluarga', 3),
+('BKA-04', 'Balita', 19, 'Tidak mampu menamai benda sekitar', 3),
+('BKA-05', 'Balita', 20, 'Tidak mampu menyebutkan angka 1-5', 1),
+('BKA-06', 'Balita', 21, 'Tidak mampu mengidentifikasi bentuk (minimal 1 bentuk konsisten)', 1),
+('BKA-07', 'Balita', 22, 'Tidak mampu mengidentifikasi warna primer', 2),
+
+-- Balita Sosialisasi (BS)
+('BS-01', 'Balita', 23, 'Tidak ada kontak mata/kontak mata minim saat diajak berbicara', 2),
+('BS-02', 'Balita', 24, 'Suka menyendiri', 1),
+('BS-03', 'Balita', 25, 'Kesulitan berdaptaasi dengan lingkungan baru', 2),
+
+
+-- Usia 6 - 12 Tahun
+-- Anak-anak Perilaku & Emosi (APE)
+('APE-01', 'Anak-anak', 1, 'Hiperaktif atau bergerak tidak bertujuan', 3),
+('APE-02', 'Anak-anak', 2, 'Hipoaktif atau lamban gerak', 3),
+('APE-03', 'Anak-anak', 3, 'Tidak mampu mengikuti aturan', 3),
+('APE-04', 'Anak-anak', 4, 'Menyakiti diri sendiri atau menyerang orang lain ketika marah', 3),
+('APE-05', 'Anak-anak', 5, 'Perilaku Repetitif atau berulang-ulang', 3),
+('APE-06', 'Anak-anak', 6, 'Tidak dapat duduk tenang', 3),
+
+-- Anak-anak Fisik & Motorik(AFM)
+('AFM-01', 'Anak-anak', 7, 'Kelainan pada anggota tubuh atau pemakaian alat bantu', 1),
+('AFM-02', 'Anak-anak', 8, 'Tidak mampu melompat', 1),
+('AFM-03', 'Anak-anak', 9, 'Tidak mampu mengikuti contoh gerakan seperti senam', 2),
+('AFM-04', 'Anak-anak', 10, 'Tidak mampu menggunting', 2),
+('AFM-05', 'Anak-anak', 11, 'Tidak mampu melipat kertas', 2),
+
+-- Anak-anak Bahasa & Bicara (ABB)
+('ABB-01', 'Anak-anak', 12, 'Saat ditanya Mengulang pertanyaan atau perkataan', 1),
+('ABB-02', 'Anak-anak', 13, 'Tidak mampu memahami perintah/instruksi', 2),
+('ABB-03', 'Anak-anak', 14, 'Tidak mampu berkomunikasi 2 arah/tanya jawab', 3),
+
+-- Anak-anak Kognitif & Akademik (AKA)
+('AKA-01', 'Anak-anak', 15, 'Tidak mampu menyelesaikan tugas', 2),
+('AKA-02', 'Anak-anak', 16, 'Tidak mampu mempertahankan atensi dan konsentrasi ketika diberi tugas', 2),
+('AKA-03', 'Anak-anak', 17, 'Tidak mampu menyebutkan identitas diri dan anggota keluarga', 3),
+('AKA-04', 'Anak-anak', 18, 'Tidak mampu menamai benda sekitar', 3),
+('AKA-05', 'Anak-anak', 19, 'Tidak mampu mengurutkan angka 1-10', 1),
+('AKA-06', 'Anak-anak', 20, 'Tidak mampu mengurutkan abjad A-Z', 1),
+
+-- Anak-anak Sosialisasi (AS)
+('AS-01', 'Anak-anak', 21, 'Tidak ada kontak mata/kontak mata minim saat diajak berbicara', 2),
+('AS-02', 'Anak-anak', 22, 'Suka menyendiri', 1),
+('AS-03', 'Anak-anak', 23, 'Tidak mau berbagi dengan teman/egois', 1),
+('AS-04', 'Anak-anak', 24, 'Kesulitan beradaptasi dengan lingkungan baru', 2),
+
+
+
+-- Usia 13 - 17 Tahun
+-- Remaja Perilaku & Emosi (RPE)
+('PPE-01', 'Remaja', 1, 'Hiperaktif atau bergerak tidak bertujuan', 3),
+('PPE-02', 'Remaja', 2, 'Hipoaktif atau lamban gerak', 3),
+('PPE-03', 'Remaja', 3, 'Tidak mampu mengikuti aturan', 3),
+('PPE-04', 'Remaja', 4, 'Menyakiti diri sendiri atau menyerang orang lain', 3),
+('PPE-05', 'Remaja', 5, 'Perilaku Repetitif atau berulang-ulang', 3),
+('PPE-06', 'Remaja', 6, 'Tidak dapat duduk tenang', 3),
+('PPE-07', 'Remaja', 7, 'Ketertarikan berlebih terhadap lawan jenis', 3),
+('PPE-08', 'Remaja', 8, 'Emosi yang meledak-ledak', 3),
+
+-- Remaja Fisik & Motorik(RFM)
+('RFM-01', 'Remaja', 9, 'Kelainan pada anggota tubuh atau pemakaian alat bantu', 1),
+('RFM-02', 'Remaja', 10, 'Tidak mampu menganyam', 3),
+
+-- Remaja Bahasa & Bicara (RBB)
+('RBB-01', 'Remaja', 11, 'Saat ditanya mengulang pertanyaan atau perkataan', 3),
+('RBB-02', 'Remaja', 12, 'Tidak mampu memahami perintah/instruksi tiga tahap', 3),
+('RBB-03', 'Remaja', 13, 'Tidak mampu berkomunikasi 2 arah/tanya jawab', 3),
+
+-- Remaja Kognitif & Akademik (RKA)
+('RKA-01', 'Remaja', 14, 'Tidak mampu menyelesaikan tugas', 3),
+('RKA-02', 'Remaja', 15, 'Tidak mampu mempertahankan atensi dan konsentrasi ketika diberi tugas', 3),
+('RKA-03', 'Remaja', 16, 'Tidak mampu menceritakan diri sendiri', 3),
+('RKA-04', 'Remaja', 17, 'Tidak mampu operasi hitung sederhana', 2),
+('RKA-05', 'Remaja', 18, 'Tidak mampu membaca paragraf sederhana', 2),
+
+-- Remaja Sosialisasi (RS)
+('RS-01', 'Remaja', 19, 'Tidak ada kontak mata/kontak mata minim saat diajak berbicara', 3),
+('RS-02', 'Remaja', 20, 'Suka menyendiri', 1)
+('RS-03', 'Remaja', 21, 'Kesulitan beradaptasi dengan lingkungan baru', 2)
+
+-- Remaja Kemandirian (RK)
+('RK-01', 'Remaja', 22, 'Tidak bisa mengancing baju sendiri', 3)
+('RK-02', 'Remaja', 23, 'Tidak bisa toilet training', 3)
+('RK-03', 'Remaja', 24, 'Tidak berpenampilan rapi dan sopan', 1)
+('RK-04', 'Remaja', 25, 'Tidak mengenal mata uang', 2)

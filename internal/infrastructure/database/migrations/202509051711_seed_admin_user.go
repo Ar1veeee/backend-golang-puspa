@@ -2,7 +2,7 @@ package migrations
 
 import (
 	helpers2 "backend-golang/internal/helpers"
-	"backend-golang/pkg/models"
+	"backend-golang/internal/infrastructure/database/models"
 	"time"
 
 	"gorm.io/gorm"

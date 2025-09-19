@@ -3,7 +3,7 @@ package persistence
 import (
 	"backend-golang/internal/domain/entities"
 	"backend-golang/internal/domain/repositories"
-	"backend-golang/pkg/models"
+	"backend-golang/internal/infrastructure/database/models"
 	"errors"
 	"fmt"
 
@@ -37,7 +37,7 @@ func (r *adminRepository) Create(ctx context.Context, tx *gorm.DB, admin *entiti
 }
 
 func (r *adminRepository) GetById(ctx context.Context, adminId string) (*entities.Admin, error) {
-	var dbAdmin models.Admin
+	var dbAdmin *models.Admin
 
 	if err := r.db.WithContext(ctx).
 		Preload("User").
@@ -49,7 +49,7 @@ func (r *adminRepository) GetById(ctx context.Context, adminId string) (*entitie
 		return nil, fmt.Errorf("failed to find admin: %w", err)
 	}
 
-	admin := r.modelToEntity(&dbAdmin)
+	admin := r.modelToEntity(dbAdmin)
 	if admin == nil {
 		return nil, errors.New("failed to find admin by id")
 	}

@@ -5,9 +5,9 @@ import (
 	"backend-golang/internal/domain/entities"
 	"backend-golang/internal/domain/repositories"
 	"backend-golang/internal/helpers"
+	models2 "backend-golang/internal/infrastructure/database/models"
 	"context"
 
-	"backend-golang/pkg/models"
 	"errors"
 	"fmt"
 	"time"
@@ -28,7 +28,7 @@ func (r *verificationTokenRepository) Create(ctx context.Context, token *entitie
 		return errors.New("verification token cannot be nil")
 	}
 
-	dbCode := &models.VerificationCode{
+	dbCode := &models2.VerificationCode{
 		Id:        token.Id,
 		UserId:    token.UserId,
 		Code:      token.Token,
@@ -50,7 +50,7 @@ func (r *verificationTokenRepository) GetByEmail(ctx context.Context, email stri
 		return nil, errors.New("email cannot be empty")
 	}
 
-	var dbUser models.User
+	var dbUser models2.User
 	if err := r.db.WithContext(ctx).Where("email = ?", email).First(&dbUser).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("user with this email not found")
@@ -58,7 +58,7 @@ func (r *verificationTokenRepository) GetByEmail(ctx context.Context, email stri
 		return nil, errors.New("failed to find user by email")
 	}
 
-	var dbToken models.VerificationCode
+	var dbToken models2.VerificationCode
 	if err := r.db.WithContext(ctx).
 		Where("user_id = ? AND status = ?", dbUser.Id, "pending").
 		Order("created_at DESC").
@@ -82,7 +82,7 @@ func (r *verificationTokenRepository) GetByToken(ctx context.Context, code strin
 		return nil, errors.New("code cannot be empty")
 	}
 
-	var dbCode models.VerificationCode
+	var dbCode models2.VerificationCode
 	if err := r.db.WithContext(ctx).
 		Where("code = ? AND status = ?", code, string(constants.VerificationCodeStatusPending)).
 		First(&dbCode).Error; err != nil {
@@ -110,7 +110,7 @@ func (r *verificationTokenRepository) UpdateStatus(ctx context.Context, code str
 		return errors.New("code cannot be empty")
 	}
 
-	var dbCode models.VerificationCode
+	var dbCode models2.VerificationCode
 	if err := r.db.WithContext(ctx).
 		Where("code = ? AND status = ?", code, string(constants.VerificationCodeStatusPending)).
 		First(&dbCode).Error; err != nil {
@@ -152,7 +152,7 @@ func (r *verificationTokenRepository) UpdateStatus(ctx context.Context, code str
 	return nil
 }
 
-func (r *verificationTokenRepository) modelToVerificationCodeEntity(dbCode *models.VerificationCode) *entities.VerificationToken {
+func (r *verificationTokenRepository) modelToVerificationCodeEntity(dbCode *models2.VerificationCode) *entities.VerificationToken {
 	return &entities.VerificationToken{
 		Id:        dbCode.Id,
 		UserId:    dbCode.UserId,

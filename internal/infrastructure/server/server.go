@@ -47,16 +47,19 @@ func NewServer(container *container.Container) *Server {
 func (s *Server) setupRoutes() {
 	api := s.router.Group("/api/v1")
 
-	adminRoutes := routes.NewAdminRoutes(s.container.AdminHandler)
+	adminRoutes := routes.NewAdminRoutes(
+		s.container.AdminHandler,
+		s.container.TherapistHandler,
+		s.container.ChildHandler,
+		s.container.ObservationHandler,
+	)
 	authRoutes := routes.NewAuthRoutes(s.container.AuthHandler)
-	therapistRoutes := routes.NewTherapistRoutes(s.container.TherapistHandler)
-	observationRoutes := routes.NewObservationRoutes(s.container.ObservationHandler)
+	therapistRoutes := routes.NewTherapistRoutes(s.container.ObservationHandler)
 	registrationRoutes := routes.NewRegistrationRoutes(s.container.RegistrationHandler)
 
 	adminRoutes.Setup(api)
 	authRoutes.Setup(api)
 	therapistRoutes.Setup(api)
-	observationRoutes.Setup(api)
 	registrationRoutes.Setup(api)
 
 	s.router.GET("/health", func(c *gin.Context) {

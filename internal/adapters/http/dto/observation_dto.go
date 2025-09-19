@@ -34,6 +34,27 @@ type DetailObservationResponse struct {
 	ChildComplaint string `json:"child_complaint"`
 }
 
-type DetailObservationRequest struct {
-	ObservationId int `json:"observation_id" validate:"required"`
+type UpdateObservationDateRequest struct {
+	ScheduledDate helpers.DateOnly `json:"scheduled_date" validate:"required"`
+}
+
+type ObservationQuestionsResponse struct {
+	QuestionsId    int    `json:"questions_id"`
+	QuestionCode   string `json:"question_code"`
+	AgeCategory    string `json:"age_category"`
+	QuestionNumber int    `json:"question_number"`
+	QuestionText   string `json:"question_text"`
+	Score          int    `json:"score"`
+}
+
+type SubmitObservationRequest struct {
+	Answers        []AnswerInput `json:"answers" validate:"required,dive"`
+	Conclusion     string        `json:"conclusion" validate:"required"`
+	Recommendation string        `json:"recommendation" validate:"required"`
+}
+
+type AnswerInput struct {
+	QuestionId int    `json:"question_id" validate:"required"`
+	Answer     bool   `json:"answer" validate:"required"`
+	Note       string `json:"note" validate:"omitempty"`
 }

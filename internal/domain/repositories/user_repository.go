@@ -14,7 +14,7 @@ type UserRepository interface {
 	GetById(ctx context.Context, id string) (*entities.User, error)
 
 	Update(ctx context.Context, tx *gorm.DB, user *entities.User) error
-	UpdateActiveStatus(ctx context.Context, userID string, isActive bool) error
+	UpdateActiveStatus(ctx context.Context, userId string, isActive bool) error
 	UpdatePassword(ctx context.Context, userId, newPassword string) error
 
 	CheckExisting(ctx context.Context, email, username string) (emailExists, usernameExists bool, err error)

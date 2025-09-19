@@ -7,7 +7,12 @@ import (
 	"backend-golang/internal/domain/services"
 	"backend-golang/internal/helpers"
 	"backend-golang/internal/infrastructure/database"
-	"backend-golang/internal/usecases"
+	"backend-golang/internal/usecases/admin"
+	"backend-golang/internal/usecases/auth"
+	"backend-golang/internal/usecases/child"
+	"backend-golang/internal/usecases/observation"
+	"backend-golang/internal/usecases/registration"
+	"backend-golang/internal/usecases/therapist"
 	pkgredis "backend-golang/pkg/redis"
 
 	goredis "github.com/redis/go-redis/v9"
@@ -18,28 +23,63 @@ type Container struct {
 	RedisClient *goredis.Client
 
 	// Repositories
-	AdminRepo        repositories.AdminRepository
-	ChildRepo        repositories.ChildRepository
-	ObservationRepo  repositories.ObservationRepository
-	ParentDetailRepo repositories.ParentDetailRepository
-	ParentRepo       repositories.ParentRepository
-	RefreshTokenRepo repositories.RefreshTokenRepository
-	TherapistRepo    repositories.TherapistRepository
-	TxRepo           repositories.TransactionRepository
-	UserRepo         repositories.UserRepository
-	VerifyTokenRepo  repositories.VerificationTokenRepository
+	AdminRepo               repositories.AdminRepository
+	ChildRepo               repositories.ChildRepository
+	ObservationRepo         repositories.ObservationRepository
+	ObservationQuestionRepo repositories.ObservationQuestionRepository
+	ObservationAnswerRepo   repositories.ObservationAnswerRepository
+	ParentDetailRepo        repositories.ParentDetailRepository
+	ParentRepo              repositories.ParentRepository
+	RefreshTokenRepo        repositories.RefreshTokenRepository
+	TherapistRepo           repositories.TherapistRepository
+	TxRepo                  repositories.TransactionRepository
+	UserRepo                repositories.UserRepository
+	VerifyTokenRepo         repositories.VerificationTokenRepository
 
 	// Services
 	emailService services.EmailService
 	rateLimiter  services.RateLimiterService
 	tokenService services.TokenService
 
-	// Use Cases
-	AdminUC        usecases.AdminUseCase
-	AuthUC         usecases.AuthUseCase
-	RegistrationUC usecases.RegistrationUseCase
-	ObservationUC  usecases.ObservationUseCase
-	TherapistUC    usecases.TherapistUseCase
+	// Use Case Auth
+	RegisterUC                  auth.RegisterUseCase
+	LoginUC                     auth.LoginUseCase
+	ResetPasswordUC             auth.ResetPasswordUseCase
+	RefreshTokenUC              auth.RefreshTokenUseCase
+	LogoutUC                    auth.LogoutUseCase
+	ResendVerificationAccountUC auth.ResendVerificationAccountUseCase
+	VerificationAccountUC       auth.VerificationAccountUseCase
+	ForgetPasswordUC            auth.ForgetPasswordUseCase
+	ResendForgetPasswordUC      auth.ResendForgetPasswordUseCase
+
+	// Use Cases Admin
+	CreateAdminUC     admin.CreateAdminUseCase
+	FindAdminsUC      admin.FindAdminsUseCase
+	FindAdminDetailUC admin.FindAdminDetailUseCase
+	UpdateAdminUC     admin.UpdateAdminUseCase
+	DeleteAdminUC     admin.DeleteAdminUseCase
+
+	// Use Cases Therapist
+	CreateTherapistUC     therapist.CreateTherapistUseCase
+	FindTherapistsUC      therapist.FindTherapistsUseCase
+	FindTherapistDetailUC therapist.FindTherapistDetailUseCase
+	UpdateTherapistUC     therapist.UpdateTherapistUseCase
+	DeleteTherapistUC     therapist.DeleteTherapistUseCase
+
+	// Use Case Registration
+	RegistrationUC registration.RegistrationUseCase
+
+	// Use Case Child
+	FindChildsUC child.FindChildUseCase
+
+	//Use Case Observation
+	FindPendingObservationsUC   observation.FindPendingObservationsUseCase
+	FindScheduledObservationsUC observation.FindScheduledObservationsUseCase
+	FindCompletedObservationsUC observation.FindCompletedObservationsUseCase
+	FindObservationDetailUC     observation.FindObservationDetailUseCase
+	UpdateObservationDateUC     observation.UpdateObservationDateUseCase
+	ObservationQuestionsUC      observation.QuestionsUseCase
+	SubmitObservationUC         observation.SubmitObservationUseCase
 
 	// Handlers
 	AdminHandler        *handlers.AdminHandler
@@ -47,6 +87,7 @@ type Container struct {
 	ObservationHandler  *handlers.ObservationHandler
 	RegistrationHandler *handlers.RegistrationHandler
 	TherapistHandler    *handlers.TherapistHandler
+	ChildHandler        *handlers.ChildHandler
 }
 
 func NewContainer() (*Container, error) {
@@ -102,6 +143,8 @@ func (c *Container) initRepositories() error {
 	c.AdminRepo = gorm.NewAdminRepository(db)
 	c.ChildRepo = gorm.NewChildRepository(db)
 	c.ObservationRepo = gorm.NewObservationRepository(db)
+	c.ObservationQuestionRepo = gorm.NewObservationQuestionRepository(db)
+	c.ObservationAnswerRepo = gorm.NewObservationAnswerRepository(db)
 	c.ParentDetailRepo = gorm.NewParentDetailRepository(db)
 	c.ParentRepo = gorm.NewParentRepository(db)
 	c.RefreshTokenRepo = gorm.NewRefreshTokenRepository(db)
@@ -115,30 +158,139 @@ func (c *Container) initRepositories() error {
 
 func (c *Container) initServices() error {
 	c.emailService = services.NewEmailService()
-
 	c.rateLimiter = services.NewRateLimiterService(c.RedisClient)
-
 	c.tokenService = services.NewTokenService()
 
 	return nil
 }
 
 func (c *Container) initUseCases() error {
-	c.AdminUC = usecases.NewAdminUseCase(c.TxRepo, c.UserRepo, c.AdminRepo)
-	c.AuthUC = usecases.NewAuthUseCase(c.TxRepo, c.UserRepo, c.ParentRepo, c.VerifyTokenRepo, c.RefreshTokenRepo, c.emailService, c.rateLimiter, c.tokenService)
-	c.TherapistUC = usecases.NewTherapistUseCase(c.TxRepo, c.UserRepo, c.TherapistRepo)
-	c.ObservationUC = usecases.NewObservationUseCase(c.ObservationRepo)
-	c.RegistrationUC = usecases.NewRegistrationUseCase(c.TxRepo, c.ParentRepo, c.ParentDetailRepo, c.ChildRepo, c.ObservationRepo)
+	// Auth Use Case
+	authDeps := auth.NewDependencies(
+		c.TxRepo,
+		c.UserRepo,
+		c.ParentRepo,
+		c.VerifyTokenRepo,
+		c.RefreshTokenRepo,
+		c.emailService,
+		c.rateLimiter,
+		c.tokenService,
+	)
+
+	c.RegisterUC = auth.NewRegisterUseCase(authDeps)
+	c.LoginUC = auth.NewLoginUseCase(authDeps)
+	c.ResetPasswordUC = auth.NewResetPasswordUseCase(authDeps)
+	c.RefreshTokenUC = auth.NewRefreshTokenUseCase(authDeps)
+	c.LogoutUC = auth.NewLogoutUseCase(authDeps)
+	c.ResendVerificationAccountUC = auth.NewResendVerificationAccountUseCase(authDeps)
+	c.VerificationAccountUC = auth.NewVerificationAccountUseCase(authDeps)
+	c.ForgetPasswordUC = auth.NewForgetPasswordUseCase(authDeps)
+	c.ResendForgetPasswordUC = auth.NewResendForgetPasswordUseCase(authDeps)
+
+	// Admin Use Case
+	adminDeps := admin.NewDependencies(
+		c.TxRepo,
+		c.UserRepo,
+		c.AdminRepo,
+	)
+
+	c.CreateAdminUC = admin.NewCreateAdminUseCase(adminDeps)
+	c.FindAdminsUC = admin.NewFindAdminsUseCase(adminDeps)
+	c.FindAdminDetailUC = admin.NewFindAdminDetailUseCase(adminDeps)
+	c.UpdateAdminUC = admin.NewUpdateAdminUseCase(adminDeps)
+	c.DeleteAdminUC = admin.NewDeleteAdminUseCase(adminDeps)
+
+	// Therapist Use Case
+	therapistDeps := therapist.NewDependencies(c.TxRepo, c.UserRepo, c.TherapistRepo)
+
+	c.CreateTherapistUC = therapist.NewCreateTherapistUseCase(therapistDeps)
+	c.FindTherapistsUC = therapist.NewFindTherapistsUseCase(therapistDeps)
+	c.FindTherapistDetailUC = therapist.NewFindTherapistDetailUseCase(therapistDeps)
+	c.UpdateTherapistUC = therapist.NewUpdateTherapistUseCase(therapistDeps)
+	c.DeleteTherapistUC = therapist.NewDeleteTherapistUseCase(therapistDeps)
+
+	// Registration Use Case
+	registrationDeps := registration.NewDependencies(
+		c.TxRepo,
+		c.ParentRepo,
+		c.ParentDetailRepo,
+		c.ChildRepo,
+		c.ObservationRepo,
+	)
+
+	c.RegistrationUC = registration.NewRegistrationUseCase(registrationDeps)
+
+	// Child Use Case
+	childDeps := child.NewDependencies(c.ChildRepo)
+
+	c.FindChildsUC = child.NewFindChildUseCase(childDeps)
+
+	// Observation Use Case
+	observationDeps := observation.NewDependencies(
+		c.TxRepo,
+		c.ObservationRepo,
+		c.ObservationQuestionRepo,
+		c.ObservationAnswerRepo,
+		c.TherapistRepo,
+	)
+
+	c.FindPendingObservationsUC = observation.NewFindPendingObservationsUseCase(observationDeps)
+	c.FindScheduledObservationsUC = observation.NewFindScheduledObservationsUseCase(observationDeps)
+	c.FindCompletedObservationsUC = observation.NewFindCompletedObservationsUseCase(observationDeps)
+	c.FindObservationDetailUC = observation.NewFindObservationDetailUseCase(observationDeps)
+	c.UpdateObservationDateUC = observation.NewUpdateObservationDateUseCase(observationDeps)
+	c.ObservationQuestionsUC = observation.NewObservationQuestionsUseCase(observationDeps)
+	c.SubmitObservationUC = observation.NewSubmitObservationUseCase(observationDeps)
 
 	return nil
 }
 
 func (c *Container) initHandlers() error {
-	c.AdminHandler = handlers.NewAdminHandler(c.AdminUC)
-	c.AuthHandler = handlers.NewAuthHandler(c.AuthUC)
-	c.TherapistHandler = handlers.NewTherapistHandler(c.TherapistUC)
-	c.ObservationHandler = handlers.NewObservationHandler(c.ObservationUC)
-	c.RegistrationHandler = handlers.NewRegistrationHandler(c.RegistrationUC)
+	c.AdminHandler = handlers.NewAdminHandler(
+		c.CreateAdminUC,
+		c.FindAdminsUC,
+		c.FindAdminDetailUC,
+		c.UpdateAdminUC,
+		c.DeleteAdminUC,
+	)
+
+	c.AuthHandler = handlers.NewAuthHandler(
+		c.RegisterUC,
+		c.LoginUC,
+		c.ResetPasswordUC,
+		c.RefreshTokenUC,
+		c.LogoutUC,
+		c.ResendVerificationAccountUC,
+		c.VerificationAccountUC,
+		c.ForgetPasswordUC,
+		c.ResendForgetPasswordUC,
+	)
+
+	c.TherapistHandler = handlers.NewTherapistHandler(
+		c.CreateTherapistUC,
+		c.FindTherapistsUC,
+		c.FindTherapistDetailUC,
+		c.UpdateTherapistUC,
+		c.DeleteTherapistUC,
+	)
+
+	c.ObservationHandler = handlers.NewObservationHandler(
+		c.FindPendingObservationsUC,
+		c.FindScheduledObservationsUC,
+		c.FindCompletedObservationsUC,
+		c.FindObservationDetailUC,
+		c.UpdateObservationDateUC,
+		c.ObservationQuestionsUC,
+		c.SubmitObservationUC,
+	)
+
+	c.RegistrationHandler = handlers.NewRegistrationHandler(
+		c.RegistrationUC,
+	)
+
+	c.ChildHandler = handlers.NewChildHandler(
+		c.FindChildsUC,
+	)
 
 	return nil
 }

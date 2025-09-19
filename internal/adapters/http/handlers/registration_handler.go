@@ -4,19 +4,21 @@ import (
 	"backend-golang/internal/adapters/http/dto"
 	"backend-golang/internal/adapters/http/middlewares"
 	"backend-golang/internal/adapters/http/types"
-	"backend-golang/internal/usecases"
+	"backend-golang/internal/usecases/registration"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 )
 
 type RegistrationHandler struct {
-	registrationUC usecases.RegistrationUseCase
+	RegistrationUC registration.RegistrationUseCase
 }
 
-func NewRegistrationHandler(registrationUC usecases.RegistrationUseCase) *RegistrationHandler {
+func NewRegistrationHandler(
+	registrationUC registration.RegistrationUseCase,
+) *RegistrationHandler {
 	return &RegistrationHandler{
-		registrationUC: registrationUC,
+		RegistrationUC: registrationUC,
 	}
 }
 
@@ -28,7 +30,7 @@ func (h *RegistrationHandler) Registration(c *gin.Context) {
 		return
 	}
 
-	err := h.registrationUC.RegistrationUseCase(c.Request.Context(), &req)
+	err := h.RegistrationUC.Execute(c.Request.Context(), &req)
 	if err != nil {
 		middlewares.AbortWithError(c, err)
 		return

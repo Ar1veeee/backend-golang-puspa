@@ -18,5 +18,6 @@ type Observation struct {
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 
-	Children *Children
+	Children          *Children
+	ObservationAnswer []ObservationAnswer
 }

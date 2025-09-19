@@ -15,7 +15,7 @@ func MigrateCreateObservationsTable(tx *gorm.DB) error {
 			total_score INTEGER NULL,
 			conclusion TEXT NULL,
 			recommendation TEXT NULL,
-			status ENUM('Pending', 'Complete') NOT NULL DEFAULT 'Pending',
+			status ENUM('Pending', 'Scheduled', 'Complete') NOT NULL DEFAULT 'Pending',
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 

@@ -70,14 +70,24 @@ func (m *Migrator) RunMigrations() error {
 			Rollback: migrations.RollbackCreateObservationsTable,
 		},
 		{
-			ID:       "202509080512_create_observation_answers_table",
-			Migrate:  migrations.MigrateCreateObservationAnswersTable,
-			Rollback: migrations.RollbackCreateObservationAnswersTable,
-		},
-		{
 			ID:       "202509130816_create_admins_table",
 			Migrate:  migrations.MigrateCreateAdminsTable,
 			Rollback: migrations.RollbackCreateAdminsTable,
+		},
+		{
+			ID:       "202509181018_create_observation_questions_table",
+			Migrate:  migrations.MigrateCreateObservationQuestionsTable,
+			Rollback: migrations.RollbackCreateObservationQuestionsTable,
+		},
+		{
+			ID:       "202509181041_seed_observation_question",
+			Migrate:  migrations.SeedObservationQuestionsTableUp,
+			Rollback: migrations.SeedObservationQuestionsTableDown,
+		},
+		{
+			ID:       "202509080512_create_observation_answers_table",
+			Migrate:  migrations.MigrateCreateObservationAnswersTable,
+			Rollback: migrations.RollbackCreateObservationAnswersTable,
 		},
 	})
 

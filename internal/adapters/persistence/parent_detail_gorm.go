@@ -3,7 +3,7 @@ package persistence
 import (
 	"backend-golang/internal/domain/entities"
 	"backend-golang/internal/domain/repositories"
-	"backend-golang/pkg/models"
+	"backend-golang/internal/infrastructure/database/models"
 	"fmt"
 
 	"context"

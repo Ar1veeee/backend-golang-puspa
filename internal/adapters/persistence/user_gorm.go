@@ -3,7 +3,7 @@ package persistence
 import (
 	"backend-golang/internal/domain/entities"
 	"backend-golang/internal/domain/repositories"
-	"backend-golang/pkg/models"
+	"backend-golang/internal/infrastructure/database/models"
 	"context"
 	"errors"
 	"fmt"
@@ -100,7 +100,8 @@ func (r *userRepository) UpdateActiveStatus(ctx context.Context, userId string, 
 		return errors.New("user id cannot be empty")
 	}
 
-	result := r.db.WithContext(ctx).Model(&models.User{}).
+	result := r.db.WithContext(ctx).
+		Model(&models.User{}).
 		Where("id = ?", userId).
 		Updates(map[string]interface{}{
 			"is_active":  isActive,
@@ -123,7 +124,8 @@ func (r *userRepository) UpdatePassword(ctx context.Context, userId, password st
 		return errors.New("user id cannot be empty")
 	}
 
-	result := r.db.WithContext(ctx).Model(&models.User{}).
+	result := r.db.WithContext(ctx).
+		Model(&models.User{}).
 		Where("id = ?", userId).
 		Updates(map[string]interface{}{
 			"password":   password,

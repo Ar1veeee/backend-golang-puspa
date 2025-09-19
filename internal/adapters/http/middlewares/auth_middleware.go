@@ -6,6 +6,7 @@ import (
 	"backend-golang/internal/errors"
 	"backend-golang/internal/helpers"
 	"backend-golang/internal/infrastructure/config"
+	"context"
 	"net/http"
 	"strings"
 
@@ -51,16 +52,17 @@ func Authenticate() gin.HandlerFunc {
 			return
 		}
 
-		c.Set("userId", claims.Subject)
-		c.Set("userRole", claims.Role)
+		ctx := context.WithValue(c.Request.Context(), constants.ContextUserID, claims.Subject)
+		ctx = context.WithValue(ctx, constants.ContextUserRole, string(claims.Role))
+		c.Request = c.Request.WithContext(ctx)
 		c.Next()
 	}
 }
 
 func Authorize(allowedRoles ...constants.Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userRole, exists := c.Get("userRole")
-		if !exists {
+		userRole, ok := helpers.GetUserRole(c.Request.Context())
+		if !ok {
 			c.AbortWithStatusJSON(http.StatusForbidden, types.ErrorResponse{
 				Success: false,
 				Message: errors.ErrForbidden.Error(),
@@ -71,7 +73,7 @@ func Authorize(allowedRoles ...constants.Role) gin.HandlerFunc {
 
 		isAllowed := false
 		for _, role := range allowedRoles {
-			if userRole == role {
+			if userRole == string(role) {
 				isAllowed = true
 				break
 			}

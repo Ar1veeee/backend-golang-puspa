@@ -2,7 +2,7 @@ package routes
 
 import (
 	"backend-golang/internal/adapters/http/handlers"
-	middlewares2 "backend-golang/internal/adapters/http/middlewares"
+	"backend-golang/internal/adapters/http/middlewares"
 	"backend-golang/internal/constants"
 	"backend-golang/pkg/redis"
 	"time"
@@ -11,14 +11,14 @@ import (
 )
 
 type TherapistRoutes struct {
-	therapistHandler *handlers.TherapistHandler
+	observationHandler *handlers.ObservationHandler
 }
 
 func NewTherapistRoutes(
-	therapistHandler *handlers.TherapistHandler,
+	observationHandler *handlers.ObservationHandler,
 ) *TherapistRoutes {
 	return &TherapistRoutes{
-		therapistHandler: therapistHandler,
+		observationHandler: observationHandler,
 	}
 }
 
@@ -30,14 +30,17 @@ func (r *TherapistRoutes) Setup(rg *gin.RouterGroup) {
 
 	therapists := rg.Group("/therapist")
 	therapists.Use(
-		middlewares2.Authenticate(),
-		middlewares2.RateLimiterUserID(client, 1*time.Second, 100),
-		middlewares2.Authorize(constants.RoleAdmin),
+		middlewares.Authenticate(),
+		middlewares.RateLimiterUserID(client, 1*time.Second, 100),
+		middlewares.Authorize(constants.RoleTherapist),
 	)
 
-	therapists.POST("/", r.therapistHandler.CreateTherapist)
-	therapists.GET("/", r.therapistHandler.FindTherapists)
-	therapists.GET("/:therapist_id", r.therapistHandler.FindTherapistDetail)
-	therapists.PUT("/:therapist_id", r.therapistHandler.UpdateTherapist)
-	therapists.PATCH("/:therapist_id", r.therapistHandler.DeleteTherapist)
+	therapists.GET("/observations/scheduled", r.observationHandler.FindScheduledObservations)
+	therapists.GET("/observations/scheduled/:observation_id", r.observationHandler.FindObservationDetail)
+
+	therapists.GET("/observations/question/:observation_id", r.observationHandler.ObservationQuestions)
+	therapists.GET("/observations/submit/:observation_id", r.observationHandler.SubmitObservation)
+
+	therapists.GET("/observations/completed", r.observationHandler.FindCompletedObservations)
+	therapists.GET("/observations/completed/:observation_id", r.observationHandler.FindObservationDetail)
 }
